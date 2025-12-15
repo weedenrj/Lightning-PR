@@ -110,7 +110,6 @@ export function UnifiedScreen({
     }
   })
 
-  const greeting = username ? `Welcome back, ${username}!` : "Welcome!"
 
   const hints = selectedTemplate
     ? [
@@ -143,15 +142,21 @@ export function UnifiedScreen({
           flexDirection="column"
           alignItems="center"
           justifyContent="flex-start"
-          width={45}
-          padding={1}
-          gap={1}
+          width="30%"
+          padding={0}
           flexShrink={0}
         >
           <Logo />
-          <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
-            {greeting}
-          </text>
+          <box flexDirection="row">
+            <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
+              {username ? "Welcome back, " : "Welcome!"}
+            </text>
+            {username && (
+              <text attributes={TextAttributes.BOLD} fg="#FFFFFF" wrapMode="none">
+                {username}!
+              </text>
+            )}
+          </box>
           <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
             Create Pull Request
           </text>
@@ -176,18 +181,10 @@ export function UnifiedScreen({
           )}
 
           <box paddingTop={1}>
-            <text fg={theme.border}>────────────────────</text>
-          </box>
-
-          <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
-            EZ PR Templates
-          </text>
-
-          <box paddingTop={1}>
             <text fg={theme.border} wrapMode="none">────────────────────</text>
           </box>
 
-          <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
+          <text attributes={TextAttributes.BOLD} fg={theme.info} wrapMode="none">
             Recent Activity
           </text>
           <box flexDirection="column" paddingLeft={1}>

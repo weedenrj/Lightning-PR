@@ -42,3 +42,4 @@ export const getRecentPRs = async (limit = 5): Promise<PRInfo[]> => {
     return []
   }
 }
+
