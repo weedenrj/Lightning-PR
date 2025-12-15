@@ -3,13 +3,9 @@ import { createRoot } from "@opentui/react"
 import { useState } from "react"
 import { $ } from "bun"
 import { mkdir, writeFile } from "fs/promises"
-import { Header } from "./components/Header"
-import { BranchPicker } from "./components/BranchPicker"
-import { TemplatePicker } from "./components/TemplatePicker"
-import { Editor } from "./components/Editor"
 import { StatusBar } from "./components/StatusBar"
 import { ErrorScreen, type ErrorReason } from "./components/ErrorScreen"
-import { WelcomeScreen } from "./components/WelcomeScreen"
+import { UnifiedScreen } from "./components/UnifiedScreen"
 import { SuccessScreen } from "./components/SuccessScreen"
 import { FailedScreen } from "./components/FailedScreen"
 import {
@@ -21,41 +17,31 @@ import {
 } from "./lib/git"
 import { discoverTemplates, type Template } from "./lib/templates"
 import { createPR, isGhInstalled, isGhAuthenticated } from "./lib/pr"
+import { getGitHubUser, getRecentPRs, type PRInfo } from "./lib/github"
 import { ExitProvider, useExit } from "./context/exit"
-import { ThemeProvider, useTheme } from "./context/theme"
+import { ThemeProvider } from "./context/theme"
 
 type AppState =
-  | { type: "loading" }
-  | { type: "error"; reason: ErrorReason; compareUrl: string | null }
   | {
-    type: "branch-select"
+    type: "unified"
+    username: string | null
     currentBranch: string | null
+    repoPath: string
+    recentPRs: PRInfo[]
     branches: string[]
     templates: Template[]
+    selectedBranch: string | null
+    selectedTemplate: Template | null
+    editorContent: string
   }
-  | {
-    type: "template-select"
-    currentBranch: string | null
-    targetBranch: string
-    templates: Template[]
-  }
-  | {
-    type: "editing"
-    currentBranch: string | null
-    targetBranch: string
-    template: Template
-  }
+  | { type: "error"; reason: ErrorReason; compareUrl: string | null }
   | { type: "creating"; currentBranch: string | null; targetBranch: string }
   | { type: "success"; url: string }
   | { type: "failed"; error: string; compareUrl: string | null }
 
 const initializeAppState = async (): Promise<AppState> => {
   if (!(await isGitRepo())) {
-    return {
-      type: "error",
-      reason: "not-git-repo",
-      compareUrl: null,
-    }
+    return { type: "error", reason: "not-git-repo", compareUrl: null }
   }
 
   if (!(await isGhInstalled())) {
@@ -95,14 +81,24 @@ const initializeAppState = async (): Promise<AppState> => {
     }
   }
 
+  const [username, recentPRs] = await Promise.all([
+    getGitHubUser(),
+    getRecentPRs(5),
+  ])
+
   return {
-    type: "branch-select",
+    type: "unified",
+    username,
     currentBranch,
+    repoPath: process.cwd(),
+    recentPRs,
     branches: prioritizedBranches,
     templates,
+    selectedBranch: null,
+    selectedTemplate: null,
+    editorContent: "",
   }
 }
-
 
 const renderer = await createCliRenderer({
   useMouse: true,
@@ -111,109 +107,141 @@ const renderer = await createCliRenderer({
 const initialState = await initializeAppState()
 
 const cleanup = (code = 0) => {
-  const rendererWithDestroy = renderer as typeof renderer & { destroy?: () => void }
+  const rendererWithDestroy = renderer as typeof renderer & {
+    destroy?: () => void
+  }
   if (typeof rendererWithDestroy.destroy === "function") {
     rendererWithDestroy.destroy()
   }
   process.exit(code)
 }
 
-process.on("SIGINT", () => {
-  cleanup(0)
-})
-
-process.on("SIGTERM", () => {
-  cleanup(0)
-})
+process.on("SIGINT", () => cleanup(0))
+process.on("SIGTERM", () => cleanup(0))
 
 function App({ initialState }: { initialState: AppState }) {
   const [state, setState] = useState<AppState>(initialState)
   const exit = useExit()
-  const { theme } = useTheme()
 
   const handleBranchSelect = (branch: string) => {
-    if (state.type === "branch-select") {
-      if (state.templates.length === 1) {
-        setState({
-          type: "editing",
-          currentBranch: state.currentBranch,
-          targetBranch: branch,
-          template: state.templates[0]!,
-        })
-      } else {
-        setState({
-          type: "template-select",
-          currentBranch: state.currentBranch,
-          targetBranch: branch,
-          templates: state.templates,
-        })
-      }
+    if (state.type === "unified") {
+      const template = state.templates.length === 1 ? state.templates[0]! : null
+      setState({
+        ...state,
+        selectedBranch: branch,
+        selectedTemplate: template,
+        editorContent: template ? template.content : "",
+      })
     }
   }
 
   const handleTemplateSelect = (template: Template) => {
-    if (state.type === "template-select") {
+    if (state.type === "unified") {
       setState({
-        type: "editing",
-        currentBranch: state.currentBranch,
-        targetBranch: state.targetBranch,
-        template,
+        ...state,
+        selectedTemplate: template,
+        editorContent: template.content,
+      })
+    }
+  }
+
+  const handleTemplateDeselect = () => {
+    if (state.type === "unified") {
+      setState({
+        ...state,
+        selectedTemplate: null,
+        editorContent: "",
+      })
+    }
+  }
+
+  const handleBranchDeselect = () => {
+    if (state.type === "unified") {
+      setState({
+        ...state,
+        selectedBranch: null,
+        selectedTemplate: null,
+        editorContent: "",
+      })
+    }
+  }
+
+  const handleEditorChange = (content: string) => {
+    if (state.type === "unified") {
+      setState({
+        ...state,
+        editorContent: content,
       })
     }
   }
 
   const handleSave = async (content: string) => {
-    if (state.type === "editing") {
+    if (state.type !== "unified") return
+
+    if (!state.selectedBranch) {
+      const compareUrl = await getCompareUrl()
       setState({
-        type: "creating",
-        currentBranch: state.currentBranch,
-        targetBranch: state.targetBranch,
+        type: "failed",
+        error: "No target branch selected. Please select a branch first.",
+        compareUrl,
       })
+      return
+    }
 
-      const titleMatch = content.match(/^#\s*(.+)$/m)
-      const title = titleMatch
-        ? titleMatch[1]!.trim()
-        : `PR from ${state.currentBranch || "current branch"}`
+    if (!state.selectedTemplate) {
+      const compareUrl = await getCompareUrl()
+      setState({
+        type: "failed",
+        error: "No template selected. Please select a template first.",
+        compareUrl,
+      })
+      return
+    }
 
-      const result = await createPR(state.targetBranch, title, content)
+    setState({
+      type: "creating",
+      currentBranch: state.currentBranch,
+      targetBranch: state.selectedBranch,
+    })
 
-      if (result.success && result.url) {
-        setState({ type: "success", url: result.url })
-        setTimeout(() => {
-          exit(0)
-        }, 3000)
-      } else {
-        const compareUrl = await getCompareUrl()
-        setState({
-          type: "failed",
-          error: result.error || "Failed to create PR",
-          compareUrl,
-        })
-      }
+    const titleMatch = content.match(/^#\s*(.+)$/m)
+    const title = titleMatch
+      ? titleMatch[1]!.trim()
+      : `PR from ${state.currentBranch || "current branch"}`
+
+    const result = await createPR(state.selectedBranch, title, content)
+
+    if (result.success && result.url) {
+      setState({ type: "success", url: result.url })
+      setTimeout(() => exit(0), 3000)
+    } else {
+      const compareUrl = await getCompareUrl()
+      setState({
+        type: "failed",
+        error: result.error || "Failed to create PR",
+        compareUrl,
+      })
     }
   }
 
-  const handleCancel = () => {
-    exit(0)
-  }
+  const handleCancel = () => exit(0)
 
   const handleErrorAction = async () => {
     if (state.type !== "error") return
 
     switch (state.reason) {
-      case "gh-not-installed": {
+      case "gh-not-installed":
         await $`open https://cli.github.com`.quiet().catch(() => { })
         exit(0)
         break
-      }
-      case "gh-not-authenticated": {
+      case "gh-not-authenticated":
         await $`gh auth login`.quiet().catch(() => { })
         exit(0)
         break
-      }
-      case "no-templates": {
-        await mkdir(".github", { recursive: true })
-        const defaultTemplate = `# Pull Request
+      case "no-templates":
+        {
+          await mkdir(".github", { recursive: true })
+          const defaultTemplate = `# Pull Request
 
 ## Description
 
@@ -230,21 +258,38 @@ function App({ initialState }: { initialState: AppState }) {
 
 - [ ] Code follows project style guidelines
 - [ ] Self-review completed
-- [ ] Comments added for complex code
 - [ ] Documentation updated
 `
-        await writeFile(".github/PULL_REQUEST_TEMPLATE.md", defaultTemplate)
-          .then(() => exit(0))
-          .catch(() => exit(1))
-        break
-      }
+          await writeFile(".github/PULL_REQUEST_TEMPLATE.md", defaultTemplate)
+            .then(() => exit(0))
+            .catch(() => exit(1))
+          break
+        }
       default:
         exit(0)
     }
   }
 
-  if (state.type === "loading") {
-    return <WelcomeScreen onQuit={handleCancel} />
+  if (state.type === "unified") {
+    return (
+      <UnifiedScreen
+        username={state.username}
+        currentBranch={state.currentBranch}
+        recentPRs={state.recentPRs}
+        branches={state.branches}
+        templates={state.templates}
+        selectedBranch={state.selectedBranch}
+        selectedTemplate={state.selectedTemplate}
+        editorContent={state.editorContent}
+        onBranchSelect={handleBranchSelect}
+        onBranchDeselect={handleBranchDeselect}
+        onTemplateSelect={handleTemplateSelect}
+        onTemplateDeselect={handleTemplateDeselect}
+        onEditorChange={handleEditorChange}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
+    )
   }
 
   if (state.type === "error") {
@@ -272,66 +317,11 @@ function App({ initialState }: { initialState: AppState }) {
     )
   }
 
-  const currentBranch =
-    state.type === "branch-select"
-      ? state.currentBranch
-      : state.type === "template-select"
-        ? state.currentBranch
-        : state.type === "editing"
-          ? state.currentBranch
-          : null
+  if (state.type === "creating") {
+    return <StatusBar />
+  }
 
-  const targetBranch =
-    state.type === "template-select"
-      ? state.targetBranch
-      : state.type === "editing"
-        ? state.targetBranch
-        : null
-
-  return (
-    <box flexDirection="column" flexGrow={1} gap={1}>
-      <Header currentBranch={currentBranch} targetBranch={targetBranch} />
-
-      {state.type === "branch-select" && (
-        <BranchPicker
-          branches={state.branches}
-          currentBranch={state.currentBranch}
-          onSelect={handleBranchSelect}
-          onCancel={handleCancel}
-        />
-      )}
-
-      {state.type === "template-select" && (
-        <TemplatePicker
-          templates={state.templates}
-          onSelect={handleTemplateSelect}
-          onCancel={handleCancel}
-        />
-      )}
-
-      {state.type === "editing" && (
-        <Editor
-          initialContent={state.template.content}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
-      )}
-
-      {state.type === "creating" && (
-        <box
-          alignItems="center"
-          justifyContent="center"
-          flexGrow={1}
-          flexDirection="column"
-          gap={1}
-        >
-          <text fg={theme.info}>Creating pull request...</text>
-          <StatusBar status="creating" />
-        </box>
-      )}
-
-    </box>
-  )
+  return null
 }
 
 function AppWithProviders({ initialState }: { initialState: AppState }) {

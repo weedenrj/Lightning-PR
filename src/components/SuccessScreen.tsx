@@ -1,7 +1,7 @@
 import { useKeyboard } from "@opentui/react"
 import { TextAttributes } from "@opentui/core"
-import { KeyHints } from "./KeyHints"
 import { useTheme } from "../context/theme"
+import { KeyHints } from "./KeyHints"
 
 interface SuccessScreenProps {
   url: string
@@ -22,43 +22,18 @@ export function SuccessScreen({ url, onQuit }: SuccessScreenProps) {
     }
   })
 
-  const hints = [
-    { key: "enter", label: "exit" },
-    { key: "q", label: "quit" },
-  ]
+  const hints = [{ key: "enter", label: "exit" }]
 
   return (
-    <box
-      flexDirection="column"
-      flexGrow={1}
-      gap={1}
-      padding={2}
-      borderStyle="single"
-      borderColor={theme.success}
-      backgroundColor={theme.backgroundPanel}
-    >
-      <box flexDirection="column" gap={1}>
-        <box flexDirection="row" gap={1} alignItems="center">
-          <text fg={theme.success}>✓</text>
-          <text attributes={TextAttributes.BOLD} fg={theme.success}>
-            Pull Request Created
-          </text>
-        </box>
-        <text fg={theme.text}>
-          Your pull request has been created successfully.
-        </text>
-        <box
-          backgroundColor={theme.backgroundElement}
-          padding={1}
-          borderStyle="single"
-          borderColor={theme.borderActive}
-        >
-          <text fg={theme.accent}>{url}</text>
-        </box>
-        <text attributes={TextAttributes.DIM} fg={theme.textMuted}>
-          Auto-exiting in a few seconds...
+    <box flexDirection="column" flexGrow={1} gap={1} padding={2}>
+      <box flexDirection="row" gap={1}>
+        <text fg={theme.success}>✓</text>
+        <text attributes={TextAttributes.BOLD} fg={theme.success}>
+          Pull Request Created
         </text>
       </box>
+      <text fg={theme.text}>{url}</text>
+      <text fg={theme.textMuted}>Exiting in a few seconds...</text>
       <KeyHints hints={hints} />
     </box>
   )
