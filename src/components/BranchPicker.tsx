@@ -1,59 +1,71 @@
-import { useState } from "react"
-import { useKeyboard } from "@opentui/react"
+import type { SelectOption } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
+import { useTheme } from "../context/theme"
+import { useKeyboard } from "@opentui/react"
+import { KeyHints } from "./KeyHints"
 
 interface BranchPickerProps {
   branches: string[]
   currentBranch: string | null
   onSelect: (branch: string) => void
+  onCancel: () => void
 }
 
 export function BranchPicker({
   branches,
   onSelect,
+  onCancel,
 }: BranchPickerProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const { theme } = useTheme()
 
   useKeyboard((key) => {
-    if (key.name === "up" || key.name === "k") {
-      setSelectedIndex((prev) => Math.max(0, prev - 1))
-    } else if (key.name === "down" || key.name === "j") {
-      setSelectedIndex((prev) => Math.min(branches.length - 1, prev + 1))
-    } else if (key.name === "return" || key.name === "enter") {
-      onSelect(branches[selectedIndex]!)
+    if (key.name === "q" || key.name === "escape" || (key.ctrl && key.name === "c")) {
+      onCancel()
     }
   })
 
+  const options: SelectOption[] = branches.map((branch) => ({
+    name: branch,
+    value: branch,
+    description: "",
+  }))
+
+  const hints = [
+    { key: "↑↓", label: "navigate" },
+    { key: "enter", label: "select" },
+    { key: "q", label: "quit" },
+  ]
+
   return (
-    <box flexDirection="column" gap={1}>
-      <text attributes={TextAttributes.BOLD}>Select target branch:</text>
-      <box flexDirection="column" gap={0}>
-        {branches.map((branch, index) => (
-          <box
-            key={branch}
-            style={{
-              backgroundColor:
-                index === selectedIndex ? "blue" : "transparent",
-            }}
-            paddingLeft={1}
-            paddingRight={1}
-          >
-            <text
-              attributes={
-                index === selectedIndex
-                  ? TextAttributes.BOLD | TextAttributes.INVERSE
-                  : undefined
-              }
-            >
-              {index === selectedIndex ? "→ " : "  "}
-              {branch}
-            </text>
-          </box>
-        ))}
-      </box>
-      <text attributes={TextAttributes.DIM}>
-        Use ↑/↓ or j/k to navigate, Enter to select
+    <box flexDirection="column" gap={1} flexGrow={1}>
+      <text attributes={TextAttributes.BOLD} fg={theme.text}>
+        Select target branch:
       </text>
+      <box
+        flexGrow={1}
+        borderStyle="single"
+        borderColor={theme.border}
+        backgroundColor={theme.backgroundPanel}
+        padding={1}
+      >
+        <select
+          focused
+          options={options}
+          wrapSelection
+          showDescription={false}
+          backgroundColor={theme.backgroundPanel}
+          textColor={theme.text}
+          focusedBackgroundColor={theme.accent}
+          focusedTextColor={theme.background}
+          showScrollIndicator
+          onSelect={(_, option) => {
+            if (option) {
+              onSelect(option.value as string)
+            }
+          }}
+        />
+      </box>
+      <KeyHints hints={hints} />
     </box>
   )
 }

@@ -1,0 +1,176 @@
+---
+description: OpenTUI Development Patterns for building production-ready terminal UIs
+globs: src/**/*.tsx, src/**/*.ts
+alwaysApply: false
+---
+
+# OpenTUI Development Patterns
+
+This project uses @opentui/react for building terminal user interfaces. Follow these patterns derived from the OpenCode agent reference implementation.
+
+## Architecture
+
+### Directory Structure
+```
+src/
+  index.tsx              # Entry point, renderer setup
+  components/            # Feature components (BranchPicker, Editor, etc.)
+  context/               # React contexts (theme, exit, etc.)
+  ui/                    # Reusable UI primitives (Dialog, Toast)
+  lib/                   # Business logic (git.ts, pr.ts, templates.ts)
+  util/                  # Pure utilities
+```
+
+### Provider Composition
+Nest context providers in a consistent order:
+```tsx
+<ExitProvider onExit={handleExit}>
+  <ThemeProvider>
+    <ToastProvider>
+      <DialogProvider>
+        <App />
+      </DialogProvider>
+    </ToastProvider>
+  </ThemeProvider>
+</ExitProvider>
+```
+
+## State Management
+
+### Discriminated Unions for App State
+Always use discriminated unions with a `type` field:
+```typescript
+type AppState =
+  | { type: "loading" }
+  | { type: "branch-select"; branches: string[] }
+  | { type: "editing"; template: Template }
+  | { type: "success"; url: string }
+  | { type: "error"; reason: ErrorReason }
+```
+
+### State Guidelines
+- Keep state minimal and flat
+- Derive computed values inline
+- Avoid global mutable state
+- Use `useState` for component state, context for shared state
+
+## Component Structure
+
+### Props Interface Pattern
+```typescript
+interface BranchPickerProps {
+  branches: string[]
+  currentBranch: string | null
+  onSelect: (branch: string) => void
+}
+
+export function BranchPicker({ branches, currentBranch, onSelect }: BranchPickerProps) {
+  const { theme } = useTheme()
+  
+  return (
+    <box flexDirection="column" gap={1}>
+      {/* Component content */}
+    </box>
+  )
+}
+```
+
+### Theme Usage
+Access theme via context, never hardcode colors:
+```typescript
+const { theme } = useTheme()
+
+<text fg={theme.text}>Normal text</text>
+<text fg={theme.textMuted}>Muted text</text>
+<text fg={theme.success}>Success indicator</text>
+<box backgroundColor={theme.backgroundPanel}>Panel content</box>
+```
+
+## Keyboard Handling
+
+### Standard Key Bindings
+- `escape` - Cancel/back navigation
+- `return` - Confirm/submit
+- `ctrl+c` - Exit application
+- Arrow keys - Navigation within lists
+
+### Keyboard Hook Pattern
+```typescript
+useKeyboard((evt) => {
+  if (evt.name === "escape") handleCancel()
+  if (evt.name === "return") handleConfirm()
+  if (evt.ctrl && evt.name === "c") handleExit()
+})
+```
+
+## Layout Primitives
+
+### Core Components
+- `box` - Flexbox container (flexDirection, gap, alignItems, justifyContent)
+- `text` - Styled text with TextAttributes (BOLD, DIM, etc.)
+- `scrollbox` - Scrollable container for long content
+- `input` - Text input field
+- `select` - Option picker with keyboard navigation
+
+### Common Layout Patterns
+```tsx
+// Vertical stack with gap
+<box flexDirection="column" gap={1}>
+  <text>Item 1</text>
+  <text>Item 2</text>
+</box>
+
+// Horizontal row with spacing
+<box flexDirection="row" gap={2} alignItems="center">
+  <text>Label</text>
+  <box flexGrow={1} />
+  <text>Value</text>
+</box>
+
+// Centered content
+<box alignItems="center" justifyContent="center" flexGrow={1}>
+  <text>Centered</text>
+</box>
+```
+
+## Error Handling
+
+### Result Pattern
+Prefer returning results over throwing exceptions:
+```typescript
+type PRResult = 
+  | { success: true; url: string }
+  | { success: false; error: string }
+
+const createPR = async (): Promise<PRResult> => {
+  const result = await $`gh pr create ...`.quiet()
+  if (result.exitCode !== 0) {
+    return { success: false, error: result.stderr.toString() }
+  }
+  return { success: true, url: result.stdout.toString().trim() }
+}
+```
+
+### Graceful Fallbacks
+Always provide fallback options (e.g., compareUrl for manual PR creation when gh fails)
+
+## Style Rules
+
+### Do
+- Keep functions focused and single-purpose
+- Use discriminated unions for state
+- Prefer early returns over nested conditions
+- Use `const` exclusively
+- Use single-word variable names where clear
+- Use Bun APIs (`Bun.file()`, `$` shell)
+- Validate inputs at system boundaries
+
+### Avoid
+- `else` statements (use early returns or ternaries)
+- `try/catch` where avoidable (use Result patterns)
+- `any` type (be explicit)
+- Unnecessary destructuring
+- `useEffect`, `useMemo`, `useCallback`
+- Hardcoded colors (use theme)
+- `let` statements
+- Comments (write self-documenting code)

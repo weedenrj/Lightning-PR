@@ -12,7 +12,9 @@
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
     "lint": "eslint .",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
   },
   "devDependencies": {
     "@types/bun": "latest",
