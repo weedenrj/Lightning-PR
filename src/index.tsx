@@ -10,6 +10,8 @@ import { Editor } from "./components/Editor"
 import { StatusBar } from "./components/StatusBar"
 import { ErrorScreen, type ErrorReason } from "./components/ErrorScreen"
 import { WelcomeScreen } from "./components/WelcomeScreen"
+import { SuccessScreen } from "./components/SuccessScreen"
+import { FailedScreen } from "./components/FailedScreen"
 import {
   isGitRepo,
   getCurrentBranch,
@@ -19,6 +21,8 @@ import {
 } from "./lib/git"
 import { discoverTemplates, type Template } from "./lib/templates"
 import { createPR, isGhInstalled, isGhAuthenticated } from "./lib/pr"
+import { ExitProvider, useExit } from "./context/exit"
+import { ThemeProvider, useTheme } from "./context/theme"
 
 type AppState =
   | { type: "loading" }
@@ -100,7 +104,10 @@ const initializeAppState = async (): Promise<AppState> => {
 }
 
 
-const renderer = await createCliRenderer()
+const renderer = await createCliRenderer({
+  useMouse: true,
+  exitOnCtrlC: false,
+})
 const initialState = await initializeAppState()
 
 const cleanup = (code = 0) => {
@@ -119,8 +126,10 @@ process.on("SIGTERM", () => {
   cleanup(0)
 })
 
-function AppWithCleanup({ initialState }: { initialState: AppState }) {
+function App({ initialState }: { initialState: AppState }) {
   const [state, setState] = useState<AppState>(initialState)
+  const exit = useExit()
+  const { theme } = useTheme()
 
   const handleBranchSelect = (branch: string) => {
     if (state.type === "branch-select") {
@@ -171,7 +180,7 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
       if (result.success && result.url) {
         setState({ type: "success", url: result.url })
         setTimeout(() => {
-          cleanup(0)
+          exit(0)
         }, 3000)
       } else {
         const compareUrl = await getCompareUrl()
@@ -185,7 +194,7 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
   }
 
   const handleCancel = () => {
-    cleanup(0)
+    exit(0)
   }
 
   const handleErrorAction = async () => {
@@ -194,18 +203,17 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
     switch (state.reason) {
       case "gh-not-installed": {
         await $`open https://cli.github.com`.quiet().catch(() => { })
-        cleanup(0)
+        exit(0)
         break
       }
       case "gh-not-authenticated": {
         await $`gh auth login`.quiet().catch(() => { })
-        cleanup(0)
+        exit(0)
         break
       }
       case "no-templates": {
-        try {
-          await mkdir(".github", { recursive: true })
-          const defaultTemplate = `# Pull Request
+        await mkdir(".github", { recursive: true })
+        const defaultTemplate = `# Pull Request
 
 ## Description
 
@@ -225,15 +233,13 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
 - [ ] Comments added for complex code
 - [ ] Documentation updated
 `
-          await writeFile(".github/PULL_REQUEST_TEMPLATE.md", defaultTemplate)
-          cleanup(0)
-        } catch {
-          cleanup(1)
-        }
+        await writeFile(".github/PULL_REQUEST_TEMPLATE.md", defaultTemplate)
+          .then(() => exit(0))
+          .catch(() => exit(1))
         break
       }
       default:
-        cleanup(0)
+        exit(0)
     }
   }
 
@@ -253,25 +259,16 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
   }
 
   if (state.type === "success") {
-    return (
-      <box flexDirection="column" gap={1} padding={2}>
-        <text>Pull request created successfully!</text>
-        <text>{state.url}</text>
-      </box>
-    )
+    return <SuccessScreen url={state.url} onQuit={handleCancel} />
   }
 
   if (state.type === "failed") {
     return (
-      <box flexDirection="column" gap={1} padding={2}>
-        <text>{state.error}</text>
-        {state.compareUrl && (
-          <box flexDirection="column" gap={1}>
-            <text>Create a PR manually:</text>
-            <text>{state.compareUrl}</text>
-          </box>
-        )}
-      </box>
+      <FailedScreen
+        error={state.error}
+        compareUrl={state.compareUrl}
+        onQuit={handleCancel}
+      />
     )
   }
 
@@ -300,6 +297,7 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
           branches={state.branches}
           currentBranch={state.currentBranch}
           onSelect={handleBranchSelect}
+          onCancel={handleCancel}
         />
       )}
 
@@ -307,6 +305,7 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
         <TemplatePicker
           templates={state.templates}
           onSelect={handleTemplateSelect}
+          onCancel={handleCancel}
         />
       )}
 
@@ -326,7 +325,7 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
           flexDirection="column"
           gap={1}
         >
-          <text>Creating pull request...</text>
+          <text fg={theme.info}>Creating pull request...</text>
           <StatusBar status="creating" />
         </box>
       )}
@@ -335,5 +334,15 @@ function AppWithCleanup({ initialState }: { initialState: AppState }) {
   )
 }
 
+function AppWithProviders({ initialState }: { initialState: AppState }) {
+  return (
+    <ExitProvider onExit={cleanup}>
+      <ThemeProvider>
+        <App initialState={initialState} />
+      </ThemeProvider>
+    </ExitProvider>
+  )
+}
+
 const root = createRoot(renderer)
-root.render(<AppWithCleanup initialState={initialState} />)
+root.render(<AppWithProviders initialState={initialState} />)

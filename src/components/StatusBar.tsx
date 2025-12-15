@@ -1,4 +1,5 @@
 import { TextAttributes } from "@opentui/core"
+import { useTheme } from "../context/theme"
 
 interface StatusBarProps {
   status: "idle" | "creating" | "success" | "error"
@@ -7,6 +8,21 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ status, message, url }: StatusBarProps) {
+  const { theme } = useTheme()
+
+  const getStatusIcon = () => {
+    switch (status) {
+      case "creating":
+        return "◐"
+      case "success":
+        return "✓"
+      case "error":
+        return "✗"
+      default:
+        return "○"
+    }
+  }
+
   const getStatusText = () => {
     switch (status) {
       case "creating":
@@ -17,6 +33,19 @@ export function StatusBar({ status, message, url }: StatusBarProps) {
         return message ? `Error: ${message}` : "An error occurred"
       default:
         return message || ""
+    }
+  }
+
+  const getStatusColor = () => {
+    switch (status) {
+      case "creating":
+        return theme.info
+      case "success":
+        return theme.success
+      case "error":
+        return theme.error
+      default:
+        return theme.textMuted
     }
   }
 
@@ -31,15 +60,22 @@ export function StatusBar({ status, message, url }: StatusBarProps) {
     }
   }
 
+  const statusColor = getStatusColor()
+
   return (
     <box
-      style={{
-        backgroundColor: status === "error" ? "red" : "transparent",
-      }}
+      backgroundColor={theme.backgroundPanel}
       padding={1}
       borderStyle="single"
+      borderColor={statusColor}
+      flexDirection="row"
+      gap={1}
+      alignItems="center"
     >
-      <text attributes={getAttributes()}>{getStatusText()}</text>
+      <text fg={statusColor}>{getStatusIcon()}</text>
+      <text attributes={getAttributes()} fg={statusColor}>
+        {getStatusText()}
+      </text>
     </box>
   )
 }

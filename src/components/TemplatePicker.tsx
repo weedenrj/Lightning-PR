@@ -1,59 +1,76 @@
-import { useState } from "react"
-import { useKeyboard } from "@opentui/react"
+import type { SelectOption } from "@opentui/core"
 import { TextAttributes } from "@opentui/core"
 import type { Template } from "../lib/templates"
+import { useTheme } from "../context/theme"
+import { useKeyboard } from "@opentui/react"
+import { KeyHints } from "./KeyHints"
 
 interface TemplatePickerProps {
   templates: Template[]
   onSelect: (template: Template) => void
+  onCancel: () => void
 }
 
 export function TemplatePicker({
   templates,
   onSelect,
+  onCancel,
 }: TemplatePickerProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const { theme } = useTheme()
 
   useKeyboard((key) => {
-    if (key.name === "up" || key.name === "k") {
-      setSelectedIndex((prev) => Math.max(0, prev - 1))
-    } else if (key.name === "down" || key.name === "j") {
-      setSelectedIndex((prev) => Math.min(templates.length - 1, prev + 1))
-    } else if (key.name === "return" || key.name === "enter") {
-      onSelect(templates[selectedIndex]!)
+    if (key.name === "q" || key.name === "escape" || (key.ctrl && key.name === "c")) {
+      onCancel()
     }
   })
 
+  const options: SelectOption[] = templates.map((template) => ({
+    name: template.name,
+    value: template.path,
+    description: template.path,
+  }))
+
+  const hints = [
+    { key: "↑↓", label: "navigate" },
+    { key: "enter", label: "select" },
+    { key: "q", label: "quit" },
+  ]
+
   return (
-    <box flexDirection="column" gap={1}>
-      <text attributes={TextAttributes.BOLD}>Select template:</text>
-      <box flexDirection="column" gap={0}>
-        {templates.map((template, index) => (
-          <box
-            key={template.path}
-            style={{
-              backgroundColor:
-                index === selectedIndex ? "blue" : "transparent",
-            }}
-            paddingLeft={1}
-            paddingRight={1}
-          >
-            <text
-              attributes={
-                index === selectedIndex
-                  ? TextAttributes.BOLD | TextAttributes.INVERSE
-                  : undefined
-              }
-            >
-              {index === selectedIndex ? "→ " : "  "}
-              {template.name}
-            </text>
-          </box>
-        ))}
-      </box>
-      <text attributes={TextAttributes.DIM}>
-        Use ↑/↓ or j/k to navigate, Enter to select
+    <box flexDirection="column" gap={1} flexGrow={1}>
+      <text attributes={TextAttributes.BOLD} fg={theme.text}>
+        Select template:
       </text>
+      <box
+        flexGrow={1}
+        borderStyle="single"
+        borderColor={theme.border}
+        backgroundColor={theme.backgroundPanel}
+        padding={1}
+      >
+        <select
+          focused
+          options={options}
+          wrapSelection
+          showDescription
+          backgroundColor={theme.backgroundPanel}
+          textColor={theme.text}
+          descriptionColor={theme.textMuted}
+          focusedBackgroundColor={theme.accent}
+          focusedTextColor={theme.background}
+          selectedDescriptionColor={theme.background}
+          showScrollIndicator
+          onSelect={(_, option) => {
+            if (option) {
+              const template = templates.find((t) => t.path === option.value)
+              if (template) {
+                onSelect(template)
+              }
+            }
+          }}
+        />
+      </box>
+      <KeyHints hints={hints} />
     </box>
   )
 }

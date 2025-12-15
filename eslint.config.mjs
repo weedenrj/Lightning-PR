@@ -4,6 +4,9 @@ import tsparser from '@typescript-eslint/parser'
 import react from 'eslint-plugin-react'
 
 export default [
+  {
+    ignores: ['.opencode-reference/**'],
+  },
   js.configs.recommended,
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
