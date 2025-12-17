@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { discoverTemplates } from "./templates"
+import { discoverTemplates } from "../lib/templates"
 import { mkdir, writeFile, rm, mkdtemp } from "fs/promises"
 import { join } from "path"
 import { tmpdir } from "os"

@@ -5,7 +5,7 @@ import {
   getRemoteBranches,
   getCompareUrl,
   isGitRepo,
-} from "./git"
+} from "../lib/git"
 
 describe("prioritizeBranches", () => {
   test("puts develop first", () => {

@@ -7,6 +7,10 @@ import { useKeyboard } from "@opentui/react"
 import type { Template } from "../lib/templates"
 import { getErrorContent, type ErrorReason } from "../lib/errors"
 
+const protectedBranchNames = new Set(["main", "master", "production", "develop", "dev", "staging"])
+
+const isProtectedBranch = (branch: string) => protectedBranchNames.has(branch.toLowerCase())
+
 export type ScreenStatus =
   | { type: "error"; reason: ErrorReason; compareUrl: string | null; onAction?: () => void }
   | { type: "selecting-branch" }
@@ -53,6 +57,10 @@ export function UnifiedScreen({
   const textareaRef = useRef<TextareaRenderable>(null)
   const [focusedBranchIndex, setFocusedBranchIndex] = useState(0)
   const [focusedTemplateIndex, setFocusedTemplateIndex] = useState(0)
+
+  const protectedBranches = branches.filter(isProtectedBranch)
+  const featureBranches = branches.filter((branch) => !isProtectedBranch(branch))
+  const selectableBranches = [...protectedBranches, ...featureBranches]
 
   useKeyboard((key) => {
     if (key.name === "escape") {
@@ -125,18 +133,22 @@ export function UnifiedScreen({
     }
 
     if (status.type === "selecting-branch") {
-      if (branches.length === 0) return
+      if (selectableBranches.length === 0) return
 
       if (key.name === "up" || (key.ctrl && key.name === "p")) {
-        setFocusedBranchIndex((prev) => (prev > 0 ? prev - 1 : branches.length - 1))
+        setFocusedBranchIndex((prev) =>
+          prev > 0 ? prev - 1 : selectableBranches.length - 1
+        )
         return
       }
       if (key.name === "down" || (key.ctrl && key.name === "n")) {
-        setFocusedBranchIndex((prev) => (prev < branches.length - 1 ? prev + 1 : 0))
+        setFocusedBranchIndex((prev) =>
+          prev < selectableBranches.length - 1 ? prev + 1 : 0
+        )
         return
       }
       if (key.name === "right" || key.name === "return") {
-        onBranchSelect(branches[focusedBranchIndex]!)
+        onBranchSelect(selectableBranches[focusedBranchIndex]!)
         setFocusedTemplateIndex(0)
         return
       }
@@ -231,7 +243,7 @@ export function UnifiedScreen({
       const content = errorContent ?? getErrorContent(status.reason)
 
       return (
-        <box flexDirection="column" flexGrow={1} gap={1}>
+        <box flexDirection="column" flexGrow={1}>
           <box flexDirection="row" gap={1}>
             <text fg={theme.error}>✗</text>
             <text attributes={TextAttributes.BOLD} fg={theme.error}>
@@ -240,12 +252,12 @@ export function UnifiedScreen({
           </box>
           <text fg={theme.text}>{content.message}</text>
           {status.compareUrl && (
-            <box paddingTop={1}>
+            <box>
               <text fg={theme.accent}>{status.compareUrl}</text>
             </box>
           )}
           {content.hasAction && status.onAction && (
-            <box paddingTop={1}>
+            <box>
               <text fg={theme.textMuted}>Press y to {content.actionLabel}</text>
             </box>
           )}
@@ -264,8 +276,8 @@ export function UnifiedScreen({
     if (status.type === "success") {
       const hyperlink = `\x1b]8;;${status.url}\x07${status.url}\x1b]8;;\x07`
       return (
-        <box flexDirection="column" flexGrow={1} gap={2}>
-          <box flexDirection="column" gap={1}>
+        <box flexDirection="column" flexGrow={1} gap={1}>
+          <box flexDirection="column">
             <box flexDirection="row" gap={1}>
               <text fg={theme.success} attributes={TextAttributes.BOLD}>✓</text>
               <text fg={theme.success} attributes={TextAttributes.BOLD}>Pull request created</text>
@@ -283,8 +295,8 @@ export function UnifiedScreen({
 
     if (status.type === "failed") {
       return (
-        <box flexDirection="column" flexGrow={1} gap={2}>
-          <box flexDirection="column" gap={1}>
+        <box flexDirection="column" flexGrow={1} gap={1}>
+          <box flexDirection="column">
             <box flexDirection="row" gap={1}>
               <text fg={theme.error} attributes={TextAttributes.BOLD}>✗</text>
               <text fg={theme.error} attributes={TextAttributes.BOLD}>Failed to create pull request</text>
@@ -298,29 +310,48 @@ export function UnifiedScreen({
     }
 
     if (status.type === "selecting-branch") {
+      const groups = [
+        { title: "Protected branches", items: protectedBranches },
+        { title: "Feature branches", items: featureBranches },
+      ].filter((group) => group.items.length > 0)
+
+      const showHeaders = groups.length > 1
+      const focusedBranch = selectableBranches[focusedBranchIndex]
+
       return (
-        <box flexDirection="column" flexGrow={1} gap={1}>
+        <box flexDirection="column" flexGrow={1} gap={1} paddingTop={1}>
           <text fg={theme.textMuted}>Select target branch</text>
-          {branches.length === 0 ? (
+          {selectableBranches.length === 0 ? (
             <text fg={theme.textMuted}>No branches available</text>
           ) : (
             <scrollbox flexGrow={1}>
               <box flexDirection="column">
-                {branches.map((branch, index) => (
-                  <box key={branch} flexDirection="row">
-                    <text
-                      fg={
-                        index === focusedBranchIndex
-                          ? theme.accent
-                          : getBranchColor(theme, branch)
-                      }
-                      attributes={index === focusedBranchIndex ? TextAttributes.BOLD : undefined}
-                    >
-                      {index === focusedBranchIndex ? "▶ " : "  "}
-                      {branch}
-                    </text>
-                  </box>
-                ))}
+                {groups.flatMap((group, groupIndex) => [
+                  ...(showHeaders
+                    ? [
+                      <box
+                        key={`${group.title}-header`}
+                        paddingTop={groupIndex === 0 ? 0 : 1}
+                      >
+                        <text fg={theme.textMuted}>{group.title}</text>
+                      </box>,
+                    ]
+                    : []),
+                  ...group.items.map((branch) => {
+                    const isFocused = branch === focusedBranch
+                    return (
+                      <box key={branch} flexDirection="row">
+                        <text
+                          fg={isFocused ? theme.accent : getBranchColor(theme, branch)}
+                          attributes={isFocused ? TextAttributes.BOLD : undefined}
+                        >
+                          {isFocused ? "▶ " : "  "}
+                          {branch}
+                        </text>
+                      </box>
+                    )
+                  }),
+                ])}
               </box>
             </scrollbox>
           )}
@@ -330,7 +361,7 @@ export function UnifiedScreen({
 
     if (status.type === "selecting-template") {
       return (
-        <box flexDirection="column" flexGrow={1} gap={1}>
+        <box flexDirection="column" flexGrow={1}>
           <text fg={theme.textMuted}>Select template</text>
           {templates.length === 0 ? (
             <text fg={theme.textMuted}>No templates available</text>
