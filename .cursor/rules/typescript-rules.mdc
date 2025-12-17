@@ -1,0 +1,50 @@
+---
+globs: *.ts,*.tsx
+alwaysApply: false
+---
+# TypeScript Standards
+
+TypeScript-specific standards for type safety and code quality.
+
+## Code Quality Requirements
+
+All code MUST pass ESLint with zero warnings:
+- Follow TypeScript strict typing with zero `any` types
+- Use `@typescript-eslint/consistent-type-imports` for type imports
+- Clean up unused imports with `unused-imports/no-unused-imports`
+
+## Type Safety
+
+- **Zero `any` types**: Use proper typing for all values
+- **Zero `as unknown` types**: Use proper typing for all values
+- **Strict null checks**: Handle undefined/null explicitly
+- **Union types over enums**: Prefer `"option1" | "option2"` over enum
+- **Type imports**: Use `import type` for type-only imports
+
+## Business Domain Types
+
+Use specific, well-typed interfaces that reflect the business domain:
+
+```typescript
+// ✅ Good - specific business types with proper typing
+interface BookingUpdateData {
+  startTime: number
+  endTime: number
+  status: "confirmed" | "pending" | "cancelled"
+  groupSize: number
+  notes?: string
+}
+
+interface BookingService {
+  create(data: BookingUpdateData): Promise<Booking>
+  update(id: string, data: Partial<BookingUpdateData>): Promise<Booking>
+  cancel(id: string, reason: string): Promise<void>
+}
+
+// ❌ Bad - generic types without specificity
+interface UpdateData {
+  data: any
+  config: object
+  callback: Function
+}
+```

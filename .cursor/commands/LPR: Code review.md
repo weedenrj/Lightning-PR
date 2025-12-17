@@ -1,7 +1,7 @@
 ---
 description: Review code changes for bugs and side effects
-argument-hint: [linear-id|scope] [scope]
-allowed-tools: Read, Glob, Grep, Task, Bash
+argument-hint: [scope]
+allowed-tools: Read, Glob, Grep, Task, Bash(git:*)
 ---
 
 Perform a thorough code review to catch unexpected side effects and bugs. Focus on finding "fix before ship" issues - real bugs that will break existing features.
@@ -10,17 +10,8 @@ Perform a thorough code review to catch unexpected side effects and bugs. Focus 
 
 **Scope handling:**
 - Parse $ARGUMENTS to determine review scope
-- If first argument matches Linear ID pattern (VAL-123, 123, val-123), extract and normalize to VAL-### format
-- Supported scopes: `unstaged`, `staged`, `HEAD~N`, `main..HEAD`, `branch-name`, file paths, or directory paths
+- Supported scopes: `unstaged`, `staged`, `HEAD~N`, `base..HEAD`, `branch-name`, file paths, or directory paths
 - For remote branch reviews, use git commands to fetch and review remote branches
-
-## STEP 0: FETCH LINEAR CONTEXT (if provided)
-
-If $ARGUMENTS contains a Linear issue ID:
-- Parse the ID (VAL-123, 123, val-123 all become VAL-123)
-- Use the Linear CLI: `npx tsx apps/scripts/src/scripts/linear/Linear.ts getIssue <issue-id>`
-- Parse JSON output to read issue title, description, and acceptance criteria
-- Include this business context in your review
 
 ## STEP 1: UNDERSTAND INTENT
 
@@ -29,7 +20,7 @@ Determine what code changed and why:
 **For remote branch reviews (branch-name argument):**
 - Fetch the branch: `git fetch origin <branch-name>`
 - List commits: `git log origin/<branch-name> --oneline`
-- Get commit diffs: `git diff origin/main...origin/<branch-name>`
+- Get commit diffs: `git diff origin/<base-branch>...origin/<branch-name>`
 - Read commit messages and aggregate all changes across commits
 
 **For local reviews (unstaged, staged, HEAD~N, main..HEAD):**
@@ -49,9 +40,9 @@ This context guides your entire review.
 Look at ALL changed files collectively and determine risk level:
 
 **HIGH RISK** - Touching existing critical systems:
-- Core services (`*Service.ts`, `*Domain.ts` files)
-- Entity models or business logic
-- Money/booking/scheduling systems
+- Git/GitHub integrations
+- PR template parsing and rendering
+- Anything that executes shell commands or touches the filesystem
 → Allocate deep investigation time
 
 **LOW RISK** - Mostly new code:
@@ -75,15 +66,12 @@ For each changed function, class, component, or type:
    - What edge cases might this usage expose?
 
 3. **EXPLORE CONTEXT:**
-   - Read related entity models (`packages/core/model/` or `apps/api/src/features/v1/[feature]/`)
-   - Models contain business rule comments
-   - Trace data flows: calculation → storage → display
-   - Use `codebase_search` to find similar code that might have the same issue
+   - Trace data flows: input → parsing → rendering → `gh` invocation
+   - Find similar patterns in `src/` and align with existing style
 
 4. **VERIFY CORRECTNESS:**
    - Edge cases: default data, undefined/null/empty, missing optionals
-   - Business rules: preserved? (check model comments)
-   - Data handling: money, dates, timezones correct?
+   - Data handling: file paths, branch names, template selection, error states
    - Breaking changes: function signatures, type changes affecting consumers
    - All usages addressed?
 

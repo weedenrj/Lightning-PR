@@ -60,6 +60,11 @@ export default [
           selector: "ImportSpecifier[imported.name='useCallback']",
           message: 'useCallback is not allowed in this project.',
         },
+        {
+          // This selector catches both standard functions and arrow functions being invoked immediately
+          selector: "CallExpression[callee.type=/^(FunctionExpression|ArrowFunctionExpression)$/]",
+          message: "IIFEs (Immediately Invoked Function Expressions) are not allowed. Use block scopes or standard function declarations instead."
+        }
       ],
     },
     settings: {

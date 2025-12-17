@@ -1,25 +1,22 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { discoverTemplates } from "./templates"
-import { mkdir, writeFile, rm } from "fs/promises"
+import { mkdir, writeFile, rm, mkdtemp } from "fs/promises"
 import { join } from "path"
+import { tmpdir } from "os"
 
 describe("discoverTemplates", () => {
-  const testDir = ".github-test-templates"
+  const originalCwd = process.cwd()
+  const dirPrefix = join(tmpdir(), "lpr-templates-")
 
   beforeEach(async () => {
-    try {
-      await rm(testDir, { recursive: true, force: true })
-    } catch {
-      // Ignore errors
-    }
+    const testDir = await mkdtemp(dirPrefix)
+    process.chdir(testDir)
   })
 
   afterEach(async () => {
-    try {
-      await rm(testDir, { recursive: true, force: true })
-    } catch {
-      // Ignore errors
-    }
+    const cwd = process.cwd()
+    process.chdir(originalCwd)
+    await rm(cwd, { recursive: true, force: true })
   })
 
   test("returns array of templates", async () => {
@@ -28,9 +25,9 @@ describe("discoverTemplates", () => {
   })
 
   test("finds template in .github/PULL_REQUEST_TEMPLATE directory", async () => {
-    await mkdir(join(testDir, "PULL_REQUEST_TEMPLATE"), { recursive: true })
+    await mkdir(join(".github", "PULL_REQUEST_TEMPLATE"), { recursive: true })
     await writeFile(
-      join(testDir, "PULL_REQUEST_TEMPLATE", "feature.md"),
+      join(".github", "PULL_REQUEST_TEMPLATE", "feature.md"),
       "# Feature PR\n\nDescription"
     )
 
@@ -48,9 +45,8 @@ describe("discoverTemplates", () => {
   })
 
   test("finds single template file", async () => {
-    await mkdir(testDir, { recursive: true })
     await writeFile(
-      join(testDir, "PULL_REQUEST_TEMPLATE.md"),
+      "PULL_REQUEST_TEMPLATE.md",
       "# PR Template\n\nContent"
     )
 
@@ -70,4 +66,5 @@ describe("discoverTemplates", () => {
     }
   })
 })
+
 

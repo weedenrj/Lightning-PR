@@ -1,5 +1,0 @@
----
-alwaysApply: true
----
-
-Never use useEffect, useMemo, or useCallback

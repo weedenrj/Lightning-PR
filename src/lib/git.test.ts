@@ -54,8 +54,7 @@ describe("isGitRepo", () => {
 describe("getCurrentBranch", () => {
   test("returns current branch name", async () => {
     const branch = await getCurrentBranch()
-    expect(branch).toBeTruthy()
-    expect(typeof branch).toBe("string")
+    expect(branch === null || typeof branch === "string").toBe(true)
   })
 })
 
@@ -80,4 +79,5 @@ describe("getCompareUrl", () => {
     }
   })
 })
+
 

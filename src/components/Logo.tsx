@@ -20,7 +20,7 @@ export function Logo() {
         selectable={false}
         wrapMode="none"
       >
-        PR
+        Lightning PR
       </text>
     </box>
   )

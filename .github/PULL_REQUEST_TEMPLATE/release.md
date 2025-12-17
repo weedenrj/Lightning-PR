@@ -6,14 +6,13 @@
 
 ## Linear Issues
 
-- closes VAL-XXX
+- closes LPR-XXX
 
 
 ## Pre-Release Checklist
 
 - [ ] Feature flags configured for production
 - [ ] Environment variables updated
-- [ ] Database migrations tested (if applicable)
 - [ ] Database has been backed up (if applicable)
 - [ ] Security review completed (if applicable)
 

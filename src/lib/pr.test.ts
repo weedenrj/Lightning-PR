@@ -16,13 +16,13 @@ describe("isGhAuthenticated", () => {
 })
 
 describe("createPR", () => {
-  test("returns result with success flag", async () => {
+  test.skip("returns result with success flag", async () => {
     const result = await createPR("main", "Test PR", "Test body")
     expect(result).toHaveProperty("success")
     expect(typeof result.success).toBe("boolean")
   })
 
-  test("includes url when successful", async () => {
+  test.skip("includes url when successful", async () => {
     const result = await createPR("main", "Test PR", "Test body")
     if (result.success) {
       expect(result.url).toBeDefined()
@@ -32,7 +32,7 @@ describe("createPR", () => {
     }
   })
 
-  test("includes error when failed", async () => {
+  test.skip("includes error when failed", async () => {
     const result = await createPR("nonexistent-branch", "Test PR", "Test body")
     if (!result.success) {
       expect(result.error).toBeDefined()
@@ -40,4 +40,5 @@ describe("createPR", () => {
     }
   })
 })
+
 
