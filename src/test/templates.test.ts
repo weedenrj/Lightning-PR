@@ -6,7 +6,7 @@ import { tmpdir } from "os"
 
 describe("discoverTemplates", () => {
   const originalCwd = process.cwd()
-  const dirPrefix = join(tmpdir(), "lpr-templates-")
+  const dirPrefix = join(tmpdir(), "template-templates-")
 
   beforeEach(async () => {
     const testDir = await mkdtemp(dirPrefix)

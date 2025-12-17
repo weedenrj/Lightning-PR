@@ -22,7 +22,7 @@ Replace `yourusername` with the GitHub username or organization that hosts the r
 Navigate to any git repository and run:
 
 ```bash
-lpr
+template
 ```
 
 The application will:

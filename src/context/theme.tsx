@@ -15,17 +15,17 @@ type Theme = {
 }
 
 const darkTheme: Theme = {
-  text: "#E6EDF3",
-  textMuted: "#9AA4B2",
+  text: "#E6F1FF",
+  textMuted: "#8BA0B4",
   background: "#0B0F14",
-  border: "#253041",
-  accent: "#60A5FA",
-  branchFeature: "#34D399",
-  branchStable: "#A78BFA",
+  border: "#1E2A38",
+  accent: "#22D3EE",
+  branchFeature: "#4ADE80",
+  branchStable: "#C084FC",
   branchProduction: "#F59E0B",
-  success: "#22C55E",
-  error: "#EF4444",
-  info: "#38BDF8",
+  success: "#4ADE80",
+  error: "#FF5C57",
+  info: "#22D3EE",
 }
 
 type ThemeContextValue = {

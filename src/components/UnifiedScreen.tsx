@@ -341,11 +341,13 @@ export function UnifiedScreen({
                     const isFocused = branch === focusedBranch
                     return (
                       <box key={branch} flexDirection="row">
+                        <text fg={isFocused ? getBranchColor(theme, branch) : theme.textMuted}>
+                          {isFocused ? "▶ " : "  "}
+                        </text>
                         <text
-                          fg={isFocused ? theme.accent : getBranchColor(theme, branch)}
+                          fg={getBranchColor(theme, branch)}
                           attributes={isFocused ? TextAttributes.BOLD : undefined}
                         >
-                          {isFocused ? "▶ " : "  "}
                           {branch}
                         </text>
                       </box>
