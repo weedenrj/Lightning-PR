@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { createPR, isGhInstalled, isGhAuthenticated } from "./pr"
+import { createPR, isGhInstalled, isGhAuthenticated } from "../lib/pr"
 
 describe("isGhInstalled", () => {
   test("returns boolean", async () => {

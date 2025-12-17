@@ -69,7 +69,15 @@ export function StreamlinedLayout({
         </box>
       </box>
 
-      <box flexGrow={1} flexShrink={1} minHeight={0} flexDirection="column" padding={1} overflow="hidden">
+      <box
+        flexGrow={1}
+        flexShrink={1}
+        minHeight={0}
+        flexDirection="column"
+        paddingLeft={1}
+        paddingRight={1}
+        overflow="hidden"
+      >
         {children}
       </box>
 

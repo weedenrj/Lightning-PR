@@ -1,12 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { discoverTemplates } from "./templates"
+import { discoverTemplates } from "../lib/templates"
 import { mkdir, writeFile, rm, mkdtemp } from "fs/promises"
 import { join } from "path"
 import { tmpdir } from "os"
 
 describe("discoverTemplates", () => {
   const originalCwd = process.cwd()
-  const dirPrefix = join(tmpdir(), "lpr-templates-")
+  const dirPrefix = join(tmpdir(), "template-templates-")
 
   beforeEach(async () => {
     const testDir = await mkdtemp(dirPrefix)

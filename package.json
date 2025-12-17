@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "bin": {
-    "lpr": "./src/index.tsx"
+    "template": "./src/index.tsx"
   },
   "files": [
     "src"
@@ -12,7 +12,9 @@
   "scripts": {
     "dev": "bun run --watch src/index.tsx",
     "lint": "eslint .",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "install:global": "bun add -g \"lightning-pr@file:$PWD\"",
+    "update:global": "bun add -g \"lightning-pr@file:$PWD\""
   },
   "devDependencies": {
     "@types/bun": "latest",
