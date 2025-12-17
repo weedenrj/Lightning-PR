@@ -1,4 +1,4 @@
-import { exists, readdir, readFile } from "fs/promises"
+import { readdir, readFile } from "fs/promises"
 import { join } from "path"
 
 export interface Template {
@@ -14,34 +14,42 @@ const TEMPLATE_PATHS = [
 ]
 
 export const discoverTemplates = async (): Promise<Template[]> => {
-  const templates: Template[] = []
+  const templateGroups = await Promise.all(
+    TEMPLATE_PATHS.map(async (templatePath) => {
+      const stat = await Bun.file(templatePath).stat().catch(() => null)
+      if (!stat) return []
 
-  for (const templatePath of TEMPLATE_PATHS) {
-    if (await exists(templatePath)) {
-      const stat = await Bun.file(templatePath).stat()
       if (stat.isDirectory()) {
         const files = await readdir(templatePath)
-        for (const file of files) {
-          if (file.endsWith(".md")) {
+        const markdownFiles = files.filter((file) => file.endsWith(".md"))
+
+        return Promise.all(
+          markdownFiles.map(async (file) => {
             const fullPath = join(templatePath, file)
             const content = await readFile(fullPath, "utf-8")
-            templates.push({
+            return {
               name: file.replace(".md", ""),
               path: fullPath,
               content,
-            })
-          }
-        }
-      } else if (stat.isFile()) {
-        const content = await readFile(templatePath, "utf-8")
-        templates.push({
-          name: "Pull Request Template",
-          path: templatePath,
-          content,
-        })
+            }
+          })
+        )
       }
-    }
-  }
 
-  return templates
+      if (stat.isFile()) {
+        const content = await readFile(templatePath, "utf-8")
+        return [
+          {
+            name: "Pull Request Template",
+            path: templatePath,
+            content,
+          },
+        ]
+      }
+
+      return []
+    })
+  )
+
+  return templateGroups.flat()
 }

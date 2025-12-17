@@ -1,4 +1,4 @@
-# templatr
+# Lightning PR
 
 A terminal UI application for creating GitHub pull requests from templates. Streamline your PR workflow with a simple, interactive interface.
 
@@ -7,7 +7,7 @@ A terminal UI application for creating GitHub pull requests from templates. Stre
 Install globally using Bun:
 
 ```bash
-bun add -g github:yourusername/templatr
+bun add -g github:yourusername/lightning-pr
 ```
 
 Replace `yourusername` with the GitHub username or organization that hosts the repository.
@@ -22,7 +22,7 @@ Replace `yourusername` with the GitHub username or organization that hosts the r
 Navigate to any git repository and run:
 
 ```bash
-template
+lpr
 ```
 
 The application will:
@@ -43,10 +43,12 @@ The application will:
 
 ## Keyboard Shortcuts
 
-- `↑/↓` or `j/k` - Navigate lists
-- `Enter` - Select option
-- `Cmd+S` / `Ctrl+S` - Save and create PR
-- `Escape` - Cancel and exit
+- `↑/↓` or `Ctrl+P`/`Ctrl+N` - Navigate lists
+- `Enter` or `→` - Select
+- `←` - Back
+- `Cmd+S` / `Ctrl+S` - Save and create PR (in editor)
+- `Cmd+B` / `Ctrl+B` - Back (from editor)
+- `q` / `Escape` / `Ctrl+C` - Quit
 
 ## Documentation
 

@@ -1,0 +1,51 @@
+---
+alwaysApply: true
+---
+# Lightning PR Skills Reference
+
+Quick reference guides for implementing common patterns in the Lightning PR codebase. Skills are colocated with their related code for easy discovery.
+
+## Skill Document Guidelines
+
+Skills should be concise (under 100 lines), human-readable, and focus on broader patterns rather than exhaustive step-by-step instructions.
+
+**Structure (flexible, not prescriptive):**
+- Brief intro explaining what the pattern is
+- Core concept or approach
+- Key components you'll need
+- Reference to example files
+- Non-obvious gotchas only
+
+Write conversationally, like explaining to a colleague. Point to examples rather than documenting every detail. Leave room for interpretation.
+
+## Skills Index
+
+Skills are managed in the `.cursor/skills/` directory. Each skill has a `SKILL.md` file with proper metadata and progressive disclosure structure.
+
+**CRITICAL: This index must always maintain perfect parity with the actual skills in this repo.** When creating, updating, or removing skills, this JSON index must be updated immediately to reflect all skills in `.cursor/skills/`.
+
+**Maintenance Requirements:**
+- Scan `.cursor/skills/` for all subdirectories containing `SKILL.md` files
+- Extract `name` and `description` from each skill's YAML frontmatter
+- Update this JSON index to include all discovered skills
+- Remove skills from index when they are deleted from directories
+- Keep categories accurate and consistent
+
+```json
+{
+  "skills": [
+    {
+      "title": "Command Development",
+      "description": "Guidance on slash command structure, YAML frontmatter fields, dynamic arguments, bash execution in commands, user interaction patterns, and command development best practices for Claude Code.",
+      "path": ".cursor/skills/command-development/SKILL.md",
+      "category": "tooling"
+    },
+    {
+      "title": "Skill Development",
+      "description": "Guidance on skill structure, progressive disclosure, and skill development best practices for creating effective skills that extend Claude's capabilities.",
+      "path": ".cursor/skills/skill-development/SKILL.md",
+      "category": "tooling"
+    }
+  ]
+}
+```

@@ -1,4 +1,4 @@
-import { TextAttributes } from "@opentui/core"
+import { useTheme } from "../context/theme"
 
 interface KeyHint {
   key: string
@@ -10,30 +10,16 @@ interface KeyHintsProps {
 }
 
 export function KeyHints({ hints }: KeyHintsProps) {
+  const { theme } = useTheme()
+
   if (hints.length === 0) return null
 
   return (
-    <box
-      flexDirection="row"
-      gap={2}
-      padding={1}
-      borderStyle="single"
-    >
-      {hints.map((hint, index) => (
-        <box key={hint.key} flexDirection="row" gap={1} alignItems="center">
-          <box
-            style={{
-              backgroundColor: "gray",
-              paddingLeft: 1,
-              paddingRight: 1,
-            }}
-          >
-            <text attributes={TextAttributes.BOLD}>{hint.key}</text>
-          </box>
-          <text attributes={TextAttributes.DIM}>{hint.label}</text>
-          {index < hints.length - 1 && (
-            <text attributes={TextAttributes.DIM}>•</text>
-          )}
+    <box flexDirection="row" gap={2} paddingTop={1} flexShrink={0}>
+      {hints.map((hint) => (
+        <box key={hint.key} flexDirection="row" gap={1}>
+          <text fg={theme.accent}>{hint.key}</text>
+          <text fg={theme.textMuted}>{hint.label}</text>
         </box>
       ))}
     </box>

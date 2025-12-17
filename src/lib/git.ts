@@ -44,19 +44,11 @@ export const prioritizeBranches = (branches: string[]): string[] => {
   const main = branches.find((b) => b === "main")
   const master = branches.find((b) => b === "master")
 
-  const others = branches.filter(
-    (b) => b !== "develop" && b !== "main" && b !== "master"
-  )
+  const primary = [develop, main || master].flatMap((branch) => (branch ? [branch] : []))
+  const others = branches.filter((b) => b !== "develop" && b !== "main" && b !== "master")
+  const sortedOthers = [...others].sort()
 
-  const prioritized: string[] = []
-
-  if (develop) prioritized.push(develop)
-  if (main) prioritized.push(main)
-  else if (master) prioritized.push(master)
-
-  prioritized.push(...others.sort())
-
-  return prioritized
+  return [...primary, ...sortedOthers]
 }
 
 export const isGitRepo = async (): Promise<boolean> => {

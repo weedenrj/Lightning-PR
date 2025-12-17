@@ -1,0 +1,114 @@
+---
+description: Review code changes for bugs and side effects
+argument-hint: [scope]
+allowed-tools: Read, Glob, Grep, Task, Bash(git:*)
+---
+
+Perform a thorough code review to catch unexpected side effects and bugs. Focus on finding "fix before ship" issues - real bugs that will break existing features.
+
+**IGNORE:** Style, imports, "why are these files changed together" (drive-by fixes are normal).
+
+**Scope handling:**
+- Parse $ARGUMENTS to determine review scope
+- Supported scopes: `unstaged`, `staged`, `HEAD~N`, `base..HEAD`, `branch-name`, file paths, or directory paths
+- For remote branch reviews, use git commands to fetch and review remote branches
+
+## STEP 1: UNDERSTAND INTENT
+
+Determine what code changed and why:
+
+**For remote branch reviews (branch-name argument):**
+- Fetch the branch: `git fetch origin <branch-name>`
+- List commits: `git log origin/<branch-name> --oneline`
+- Get commit diffs: `git diff origin/<base-branch>...origin/<branch-name>`
+- Read commit messages and aggregate all changes across commits
+
+**For local reviews (unstaged, staged, HEAD~N, main..HEAD):**
+- Changed files: !`git status --porcelain | cut -c4-`
+- Staged changes: !`git diff --cached --name-only`
+- Commit history: !`git log --oneline -10`
+- Read commit messages to understand intent
+
+**For file/directory reviews:**
+- Read the specified files or all files in the directory
+- Understand the purpose of each file
+
+This context guides your entire review.
+
+## STEP 2: ASSESS CRITICALITY
+
+Look at ALL changed files collectively and determine risk level:
+
+**HIGH RISK** - Touching existing critical systems:
+- Git/GitHub integrations
+- PR template parsing and rendering
+- Anything that executes shell commands or touches the filesystem
+→ Allocate deep investigation time
+
+**LOW RISK** - Mostly new code:
+- All new untracked files that can't break existing systems
+- Pure UI additions with no integration
+→ Lighter review is appropriate
+
+File names and paths are self-documenting - use them to assess risk.
+
+## STEP 3: INVESTIGATE IMPACT
+
+For each changed function, class, component, or type:
+
+1. **GREP FOR USAGES:**
+   - Use `grep` tool to search codebase for the function/type/component name
+   - Search beyond import statements to find actual call sites and usages
+
+2. **REASON ABOUT EACH USAGE:**
+   - Does this usage still work with the change?
+   - Does it need updating? Has it already been updated?
+   - What edge cases might this usage expose?
+
+3. **EXPLORE CONTEXT:**
+   - Trace data flows: input → parsing → rendering → `gh` invocation
+   - Find similar patterns in `src/` and align with existing style
+
+4. **VERIFY CORRECTNESS:**
+   - Edge cases: default data, undefined/null/empty, missing optionals
+   - Data handling: file paths, branch names, template selection, error states
+   - Breaking changes: function signatures, type changes affecting consumers
+   - All usages addressed?
+
+Follow threads wherever they lead. **Core principle:** Grep changed functions, reason about every usage.
+
+## STEP 4: REPORT FINDINGS
+
+Format your review with this structure:
+
+```
+## 📋 Context
+What this code accomplishes (1-2 sentences)
+
+## ⚡ Risk Level
+High/Medium/Low
+
+## 🔍 Investigation
+- Functions grepped and usages examined
+- Models and business logic checked
+- Integration points verified
+
+## Findings
+
+### 🔴 Fix Before Ship
+- **[file:line]** - Issue and impact
+
+### 🟡 Needs Verification
+- **[file:line]** - Uncertain issue
+
+### ✅ Looking Good
+- Positive observations
+
+## Side Effects Summary
+
+| Issue | Severity | Status | Blocking? |
+|-------|----------|--------|-----------|
+| Brief description | Low/Medium/High | Acceptable trade-off / Needs fix / Minor quirk / etc | Yes/No - explanation |
+```
+
+If you find nothing wrong, say so clearly with ✅ and empty Side Effects Summary table.

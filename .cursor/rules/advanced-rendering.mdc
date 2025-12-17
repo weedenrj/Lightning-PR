@@ -1,0 +1,371 @@
+---
+alwaysApply: true
+---
+Here is a comprehensive technical guide on using the `OptimizedBuffer` (FrameBuffer) within the **OpenTUI** ecosystem.
+
+This guide focuses on the low-level `@opentui/core` imperative API, as this gives you the direct memory access required for high-performance rendering (60FPS+), games (like the DOOM port), and complex animations.
+
+---
+
+# The OpenTUI FrameBuffer: A Deep Dive Manual
+
+## 1. Introduction
+
+In OpenTUI, the `OptimizedBuffer` (often referred to simply as the **FrameBuffer**) is the "Video RAM" of your terminal application. Unlike standard TUI libraries that treat the terminal as a stream of text strings, OpenTUI treats it as a **grid of pixels**.
+
+This distinction allows for:
+
+* **Sub-cell rendering:** Using half-blocks (`▀`) to effectively double vertical resolution.
+* **Alpha Blending:** True transparency and compositing of UI layers.
+* **Dirty Rect Rendering:** Only updating changed cells for extreme performance.
+
+This guide covers the lifecycle of the buffer: **Allocation**, **Manipulation**, **Compositing**, and **Rendering**.
+
+---
+
+## 2. Architecture & Setup
+
+To use the FrameBuffer, you must bypass the standard React/Solid reconcilers and drop down to the **Renderable** system.
+
+### The Rendering Pipeline
+
+1. **`CliRenderer`**: The engine that owns the terminal `stdout`, handles the event loop, and manages the FPS cap.
+2. **`FrameBufferRenderable`**: A container that holds a buffer and knows how to "blit" (copy) it to the screen.
+3. **`OptimizedBuffer`**: The actual 2D array of `Cell` data.
+
+### Basic Initialization
+
+Create a standalone script (e.g., `main.ts`) to initialize the rendering context.
+
+```typescript
+import { createCliRenderer, FrameBufferRenderable } from "@opentui/core";
+
+async function main() {
+  // 1. Initialize the Renderer
+  // This takes over the terminal screen and sets raw mode.
+  const renderer = await createCliRenderer({
+    fps: 60, // Target frame rate
+  });
+
+  // 2. Create a FrameBuffer
+  // We determine size based on the terminal's current dimensions
+  const width = renderer.width;
+  const height = renderer.height;
+
+  const fb = new FrameBufferRenderable(renderer, {
+    width: width,
+    height: height,
+  });
+
+  // 3. Mount and Start
+  // Use the imperative API to set this buffer as the root element
+  renderer.setRenderable(fb);
+  renderer.start(); // Begins the render loop
+}
+
+main();
+
+```
+
+---
+
+## 3. The `Cell` Structure and Color
+
+OpenTUI does not use ANSI escape codes for internal color storage. Instead, it uses normalized **RGBA floats** (0.0 to 1.0). This is crucial for the alpha blending engine.
+
+### Color Definition
+
+```typescript
+interface Rgba {
+  r: number; // 0.0 - 1.0
+  g: number; // 0.0 - 1.0
+  b: number; // 0.0 - 1.0
+  a: number; // 0.0 - 1.0 (Alpha channel)
+}
+
+// Common Colors
+const WHITE: Rgba = { r: 1, g: 1, b: 1, a: 1 };
+const BLACK: Rgba = { r: 0, g: 0, b: 0, a: 1 };
+const TRANSPARENT: Rgba = { r: 0, g: 0, b: 0, a: 0 };
+const RED_HALF_ALPHA: Rgba = { r: 1, g: 0, b: 0, a: 0.5 };
+
+```
+
+### The Cell Unit
+
+A single cell in the buffer contains:
+
+* **Char:** The unicode character to display (string).
+* **Fg:** Foreground color (Rgba).
+* **Bg:** Background color (Rgba).
+
+---
+
+## 4. Manipulating the Buffer
+
+You interact with the buffer primarily through `fb.buffer` methods. Note that coordinates are 0-indexed `(x, y)`.
+
+### A. Writing Cells (`setCell`)
+
+The fastest way to write opaque data.
+
+```typescript
+// Draw a blue "X" at coordinates (10, 5)
+fb.buffer.setCell(
+  10,                 // x
+  5,                  // y
+  "X",                // character
+  { r: 0, g: 0, b: 1, a: 1 }, // Foreground (Blue)
+  { r: 0, g: 0, b: 0, a: 1 }  // Background (Black)
+);
+
+```
+
+### B. Alpha Blending (`setCellWithAlphaBlending`)
+
+This is the superpower of OpenTUI. If you write a cell with `a: 0.5`, it calculates the color based on what is *already* in that cell.
+
+```typescript
+// Assume the background is white.
+// We draw a Red cell with 50% opacity.
+// Result: A pinkish cell.
+
+fb.buffer.setCellWithAlphaBlending(
+  10, 5,
+  "█", 
+  { r: 1, g: 0, b: 0, a: 0.5 }, // Fg
+  { r: 0, g: 0, b: 0, a: 0 }    // Bg (Transparent)
+);
+
+```
+
+> **Warning:** Alpha blending is computationally more expensive than `setCell`. Use it for overlays, shadows, and particles, but avoid it for clearing the whole screen if possible.
+
+### C. Drawing Text
+
+For rendering strings, use `drawText`.
+
+```typescript
+fb.buffer.drawText(
+  2, 2,                     // x, y
+  "System Initialization",  // text
+  WHITE,                    // foreground
+  BLACK                     // background (optional)
+);
+
+```
+
+### D. Rectangles and Clearing
+
+Always clear your buffer (or specific regions of it) at the start of a frame if you are animating objects that move.
+
+```typescript
+// Clear screen to black
+fb.buffer.fillRect(0, 0, width, height, BLACK);
+
+// Draw a HUD bar at the bottom
+fb.buffer.fillRect(0, height - 3, width, 3, { r: 0.2, g: 0.2, b: 0.2, a: 1 });
+
+```
+
+---
+
+## 5. High-Resolution Graphics (The "Half-Block" Trick)
+
+Standard terminal cells are roughly twice as tall as they are wide. To create square "pixels" and double your vertical resolution (like `opentui-doom`), use the **Half-Block Strategy**.
+
+Instead of thinking of one coordinate as one pixel, treat one coordinate as **two** vertical pixels:
+
+1. **Top Pixel:** Represented by the Foreground color.
+2. **Bottom Pixel:** Represented by the Background color.
+3. **Character:** Always use the Upper Half Block char `▀` (U+2580).
+
+### Implementation Logic
+
+```typescript
+function setPixel(x: number, y: number, color: Rgba) {
+  // Map "virtual" Y pixel to "terminal" Y cell
+  const termY = Math.floor(y / 2);
+  const isTop = y % 2 === 0;
+
+  // Get current cell data to preserve the "other" half
+  const current = fb.buffer.getCell(x, termY);
+  
+  if (isTop) {
+    // If drawing top pixel, set Foreground. Keep existing Background.
+    fb.buffer.setCell(x, termY, "▀", color, current.bg);
+  } else {
+    // If drawing bottom pixel, set Background. Keep existing Foreground.
+    fb.buffer.setCell(x, termY, "▀", current.fg, color);
+  }
+}
+
+```
+
+---
+
+## 6. The Animation Loop
+
+The `CliRenderer` handles the loop timing, but you need to update your buffer state. You can hook into the render cycle by overriding the `render` method or running a separate `tick` function.
+
+### Best Practice: The `tick` pattern
+
+```typescript
+let xPos = 0;
+let velocity = 1;
+
+// Define your update logic
+function tick() {
+  // 1. Update Physics
+  xPos += velocity;
+  if (xPos > width || xPos < 0) velocity *= -1;
+
+  // 2. Clear Previous Frame
+  fb.buffer.fillRect(0, 0, width, height, BLACK);
+
+  // 3. Draw New Frame
+  fb.buffer.drawText(Math.floor(xPos), 10, "DVD Video", { r: 0, g: 1, b: 0, a: 1 });
+}
+
+// Hook into the renderer
+renderer.onFrame = () => {
+  tick();
+};
+
+renderer.start();
+
+```
+
+---
+
+## 7. Advanced: Compositing Buffers (Blitting)
+
+For complex apps, you don't want to draw everything to one massive buffer. You want "Sprites" or "Layers". You can create offline buffers and copy them onto the main framebuffer.
+
+```typescript
+import { OptimizedBuffer } from "@opentui/core";
+
+// Create a sprite (e.g., a spaceship)
+const shipSprite = new OptimizedBuffer(5, 3); // 5x3 size
+shipSprite.drawText(0, 0, "  ^  ", WHITE);
+shipSprite.drawText(0, 1, " <O> ", WHITE);
+shipSprite.drawText(0, 2, " ^ ^ ", RED_HALF_ALPHA);
+
+// In your main loop, copy the sprite to the main buffer
+// drawFrameBuffer(source, x, y)
+fb.buffer.drawFrameBuffer(shipSprite, playerX, playerY);
+
+```
+
+This allows you to cache expensive rendering (like a complex UI window) and just blit it every frame rather than redrawing it cell-by-cell.
+
+---
+
+## 8. Complete Boilerplate: "Matrix Rain" Effect
+
+Here is a complete, copy-pasteable example of using the `OptimizedBuffer` to create a high-performance Matrix rain animation.
+
+```typescript
+import { createCliRenderer, FrameBufferRenderable } from "@opentui/core";
+
+// Types
+interface Drop {
+  x: number;
+  y: number;
+  speed: number;
+  length: number;
+  chars: string[];
+}
+
+const GREEN = { r: 0, g: 1, b: 0, a: 1 };
+const DIM_GREEN = { r: 0, g: 0.3, b: 0, a: 1 };
+const FADE = { r: 0, g: 0, b: 0, a: 0.1 }; // Black with low alpha for trails
+
+async function startMatrix() {
+  const renderer = await createCliRenderer({ fps: 30 });
+  const width = renderer.width;
+  const height = renderer.height;
+
+  const fb = new FrameBufferRenderable(renderer, { width, height });
+  renderer.setRenderable(fb);
+
+  // Initialize Drops
+  const drops: Drop[] = [];
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#@%";
+
+  for (let i = 0; i < width / 2; i++) {
+    drops.push({
+      x: Math.floor(Math.random() * width),
+      y: Math.floor(Math.random() * height),
+      speed: 0.5 + Math.random(),
+      length: 5 + Math.floor(Math.random() * 15),
+      chars: []
+    });
+  }
+
+  // Animation Loop
+  renderer.onFrame = () => {
+    // 1. Create Trails: Instead of clearing to black, we draw a 
+    // semi-transparent black rectangle over the whole screen.
+    // This makes old characters slowly fade out.
+    fb.buffer.fillRect(0, 0, width, height, FADE);
+
+    // 2. Update and Draw Drops
+    drops.forEach(drop => {
+      // Move
+      drop.y += drop.speed;
+
+      // Reset if off screen
+      if (drop.y - drop.length > height) {
+        drop.y = -drop.length;
+        drop.x = Math.floor(Math.random() * width);
+      }
+
+      // Draw the "Head" (Bright White)
+      const headY = Math.floor(drop.y);
+      if (headY >= 0 && headY < height) {
+        const char = chars[Math.floor(Math.random() * chars.length)];
+        fb.buffer.setCell(drop.x, headY, char, { r: 0.8, g: 1, b: 0.8, a: 1 }, {r:0,g:0,b:0,a:0});
+      }
+
+      // Draw the "Tail" (Green)
+      for (let i = 1; i < drop.length; i++) {
+        const tailY = Math.floor(drop.y - i);
+        if (tailY >= 0 && tailY < height) {
+           // We use alpha blending to make the tail look ghostly
+           fb.buffer.setCellWithAlphaBlending(
+             drop.x, 
+             tailY, 
+             chars[Math.floor(Math.random() * chars.length)],
+             { r: 0, g: 1, b: 0, a: 1 - (i / drop.length) }, // Alpha fade
+             { r: 0, g: 0, b: 0, a: 0 }
+           );
+        }
+      }
+    });
+  };
+
+  renderer.start();
+}
+
+startMatrix();
+
+```
+
+---
+
+## 9. Troubleshooting & Performance Tips
+
+1. **Flickering?**
+* Ensure you are using `renderer.start()` and not manually calling render in a `setInterval`. The renderer syncs with the terminal stream to prevent tearing.
+* If using `ssh`, lower the FPS to 30 or 15.
+
+
+2. **High CPU Usage?**
+* Avoid `setCellWithAlphaBlending` on every single cell if possible. Opaque `setCell` is 3x faster.
+* Use **Clipping**: If you have a large map but a small screen, ensure your drawing loop checks `if (x < 0 || x >= width)` before calling `setCell`. The buffer does check internally, but checking in your loop saves function call overhead.
+
+
+3. **Colors Look Wrong?**
+* Remember standard terminals have limited color palettes. OpenTUI attempts to downsample 24-bit TrueColor floats to the nearest supported color (ANSI 256 or 16 colors) if the user's terminal doesn't support TrueColor.
+* Force TrueColor support in your environment if needed: `COLORTERM=truecolor`.

@@ -4,6 +4,9 @@ import tsparser from '@typescript-eslint/parser'
 import react from 'eslint-plugin-react'
 
 export default [
+  {
+    ignores: ['.opencode-reference/**'],
+  },
   js.configs.recommended,
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
@@ -39,6 +42,7 @@ export default [
               name: 'react',
               importNames: ['useEffect', 'useMemo', 'useCallback'],
               message: 'useEffect, useMemo, and useCallback are not allowed in this project.',
+              ignores: ['src/components/PixelLoader.tsx'],
             },
           ],
         },
@@ -57,6 +61,11 @@ export default [
           selector: "ImportSpecifier[imported.name='useCallback']",
           message: 'useCallback is not allowed in this project.',
         },
+        {
+          // This selector catches both standard functions and arrow functions being invoked immediately
+          selector: "CallExpression[callee.type=/^(FunctionExpression|ArrowFunctionExpression)$/]",
+          message: "IIFEs (Immediately Invoked Function Expressions) are not allowed. Use block scopes or standard function declarations instead."
+        }
       ],
     },
     settings: {

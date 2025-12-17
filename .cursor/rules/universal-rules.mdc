@@ -1,0 +1,33 @@
+---
+alwaysApply: true
+---
+# Lightning PR Core Standards
+
+Universal coding standards that apply to all code in the Lightning PR codebase.
+
+## Core Rules - Never Compromise
+
+- **NO .env FILE ACCESS**: Never read or write to environment files under any circumstance
+- **CLEAN UP AFTER YOURSELF**: Whenever you are done writing code look back on your changes and consider what old ideas, files, patterns, vaiables, ect should be removed to prevent accidental developer confusion.
+- **NO SEMICOLONS**: Code should not end lines with semicolons
+- **NO COMMENTS**: Never write comments in source code
+- **USE CONST EXCLUSIVELY**: Always use `const` for variable declarations, never `let` or `var`
+- **IMMUTABLE CODE ONLY**: Transform data through pure functions and spreads, never mutate existing objects
+- **NO IIFES**: Never write functions and then immediately execute them
+- **KEEP IT SIMPLE**: Prefer the simplest solution that matches existing patterns
+- **FOLLOW EXISTING PATTERNS**: Search the codebase before introducing new helpers or abstractions
+
+## Planning & Execution
+
+- **Understand what exists**: Search for similar patterns before implementing new logic
+- **Minimize surface area**: Prefer small, targeted changes over refactors
+- **Keep code self-documenting**: Prefer clear naming and structure over explanatory comments
+
+## TypeScript & React
+
+- **Prefer pure functions**: Move complex logic into small helpers with descriptive names
+- **Avoid hook cleverness**: Don’t add `useMemo`/`useCallback`, avoid `useEffect` unless explicitly requested
+
+## Logging
+
+- **NO LOGGING WITHOUT PERMISSION**: Never add logging statements without explicit user approval
