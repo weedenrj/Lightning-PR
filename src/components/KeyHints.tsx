@@ -15,7 +15,7 @@ export function KeyHints({ hints }: KeyHintsProps) {
   if (hints.length === 0) return null
 
   return (
-    <box flexDirection="row" gap={2} paddingTop={1}>
+    <box flexDirection="row" gap={2} paddingTop={1} flexShrink={0}>
       {hints.map((hint) => (
         <box key={hint.key} flexDirection="row" gap={1}>
           <text fg={theme.accent}>{hint.key}</text>

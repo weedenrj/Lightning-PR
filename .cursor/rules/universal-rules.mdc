@@ -8,6 +8,7 @@ Universal coding standards that apply to all code in the Lightning PR codebase.
 ## Core Rules - Never Compromise
 
 - **NO .env FILE ACCESS**: Never read or write to environment files under any circumstance
+- **CLEAN UP AFTER YOURSELF**: Whenever you are done writing code look back on your changes and consider what old ideas, files, patterns, vaiables, ect should be removed to prevent accidental developer confusion.
 - **NO SEMICOLONS**: Code should not end lines with semicolons
 - **NO COMMENTS**: Never write comments in source code
 - **USE CONST EXCLUSIVELY**: Always use `const` for variable declarations, never `let` or `var`

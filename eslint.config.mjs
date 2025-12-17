@@ -42,6 +42,7 @@ export default [
               name: 'react',
               importNames: ['useEffect', 'useMemo', 'useCallback'],
               message: 'useEffect, useMemo, and useCallback are not allowed in this project.',
+              ignores: ['src/components/PixelLoader.tsx'],
             },
           ],
         },

@@ -15,16 +15,13 @@ import {
 } from "./lib/git"
 import { discoverTemplates, type Template } from "./lib/templates"
 import { createPR, isGhInstalled, isGhAuthenticated } from "./lib/pr"
-import { getGitHubUser, getRecentPRs, type PRInfo } from "./lib/github"
 import { ExitProvider, useExit } from "./context/exit"
 import { ThemeProvider } from "./context/theme"
 import { type ErrorReason } from "./lib/errors"
 
 type UnifiedData = {
-  username: string | null
   currentBranch: string | null
   repoPath: string
-  recentPRs: PRInfo[]
   branches: string[]
   templates: Template[]
   selectedBranch: string | null
@@ -76,7 +73,9 @@ const initializeAppState = async (): Promise<AppState> => {
 
   const currentBranch = await getCurrentBranch()
   const branches = await getRemoteBranches()
-  const prioritizedBranches = prioritizeBranches(branches)
+  const prioritizedBranches = prioritizeBranches(branches).filter(
+    (branch) => branch !== currentBranch
+  )
 
   if (prioritizedBranches.length === 0) {
     return {
@@ -87,17 +86,10 @@ const initializeAppState = async (): Promise<AppState> => {
     }
   }
 
-  const [username, recentPRs] = await Promise.all([
-    getGitHubUser(),
-    getRecentPRs(5),
-  ])
-
   return {
     type: "unified",
-    username,
     currentBranch,
     repoPath,
-    recentPRs,
     branches: prioritizedBranches,
     templates,
     selectedBranch: null,
@@ -107,22 +99,16 @@ const initializeAppState = async (): Promise<AppState> => {
 }
 
 const renderer = await createCliRenderer({
-  useMouse: true,
-  exitOnCtrlC: false,
+  useMouse: false,
+  exitOnCtrlC: true,
 })
 const initialState = await initializeAppState()
 
-const destroyRenderer = () => {
-  const rendererWithDestroy = renderer as typeof renderer & {
-    destroy?: () => void
-  }
-  if (typeof rendererWithDestroy.destroy === "function") {
-    rendererWithDestroy.destroy()
-  }
-}
-
 const cleanup = (code = 0) => {
-  destroyRenderer()
+  renderer.stop()
+  process.stdout.write("\x1b[?25h")
+  process.stdout.write("\x1b[0m")
+  process.stdout.write("\n")
   process.exit(code)
 }
 
@@ -134,7 +120,9 @@ process.on("SIGTERM", handleExitSignal)
 const runInteractiveCommand = async (cmd: string[]): Promise<number> => {
   process.off("SIGINT", handleExitSignal)
   process.off("SIGTERM", handleExitSignal)
-  destroyRenderer()
+  renderer.stop()
+  process.stdout.write("\x1b[?25h")
+  process.stdout.write("\x1b[0m")
 
   try {
     const subprocess = Bun.spawn(cmd, {
@@ -310,10 +298,8 @@ function App({ initialState }: { initialState: AppState }) {
   const data: UnifiedData =
     state.type === "error"
       ? {
-        username: null,
         currentBranch: null,
         repoPath: state.repoPath,
-        recentPRs: [],
         branches: [],
         templates: [],
         selectedBranch: null,
@@ -321,10 +307,8 @@ function App({ initialState }: { initialState: AppState }) {
         editorContent: "",
       }
       : {
-        username: state.username,
         currentBranch: state.currentBranch,
         repoPath: state.repoPath,
-        recentPRs: state.recentPRs,
         branches: state.branches,
         templates: state.templates,
         selectedBranch: state.selectedBranch,
@@ -350,9 +334,7 @@ function App({ initialState }: { initialState: AppState }) {
   return (
     <UnifiedScreen
       status={status}
-      username={data.username}
       currentBranch={data.currentBranch}
-      recentPRs={data.recentPRs}
       branches={data.branches}
       templates={data.templates}
       selectedBranch={data.selectedBranch}

@@ -2,10 +2,8 @@ import { useRef, useState } from "react"
 import { TextAttributes } from "@opentui/core"
 import type { TextareaRenderable } from "@opentui/core"
 import { useTheme, getBranchColor } from "../context/theme"
-import { Logo } from "./Logo"
-import { KeyHints } from "./KeyHints"
+import { StreamlinedLayout, type Breadcrumb } from "./StreamlinedLayout"
 import { useKeyboard } from "@opentui/react"
-import type { PRInfo } from "../lib/github"
 import type { Template } from "../lib/templates"
 import { getErrorContent, type ErrorReason } from "../lib/errors"
 
@@ -20,9 +18,7 @@ export type ScreenStatus =
 
 interface UnifiedScreenProps {
   status: ScreenStatus
-  username: string | null
   currentBranch: string | null
-  recentPRs: PRInfo[]
   branches: string[]
   templates: Template[]
   selectedBranch: string | null
@@ -39,9 +35,7 @@ interface UnifiedScreenProps {
 
 export function UnifiedScreen({
   status,
-  username,
   currentBranch,
-  recentPRs,
   branches,
   templates,
   selectedBranch,
@@ -61,7 +55,7 @@ export function UnifiedScreen({
   const [focusedTemplateIndex, setFocusedTemplateIndex] = useState(0)
 
   useKeyboard((key) => {
-    if (key.name === "q" || key.name === "escape" || (key.ctrl && key.name === "c")) {
+    if (key.name === "escape") {
       onCancel()
       return
     }
@@ -103,7 +97,6 @@ export function UnifiedScreen({
         onTemplateDeselect()
         return
       }
-      return
     }
 
     if ((key.ctrl && key.name === "s") || (key.meta && key.name === "s")) {
@@ -157,35 +150,83 @@ export function UnifiedScreen({
       ? [
         { key: "⌘S", label: "save & create" },
         { key: "⌘B", label: "back" },
-        { key: "q", label: "quit" },
+        { key: "⌃K", label: "delete line" },
+        { key: "⇧↑↓ + DEL", label: "select lines and delete" },
+        { key: "esc", label: "quit" },
       ]
       : status.type === "selecting-template"
         ? [
           { key: "↑↓", label: "navigate" },
           { key: "←→", label: "navigate" },
-          { key: "q", label: "quit" },
+          { key: "esc", label: "quit" },
         ]
         : status.type === "selecting-branch"
           ? [
             { key: "↑↓", label: "navigate" },
             { key: "→", label: "navigate" },
-            { key: "q", label: "quit" },
+            { key: "esc", label: "quit" },
           ]
           : status.type === "error" && errorContent?.hasAction && status.onAction
             ? [
               { key: "y", label: errorContent.actionLabel || "yes" },
               { key: "n", label: "no" },
-              { key: "q", label: "quit" },
+              { key: "esc", label: "quit" },
             ]
             : status.type === "success"
               ? [{ key: "enter", label: "exit" }]
               : status.type === "failed"
-                ? [{ key: "q", label: "quit" }]
+                ? [{ key: "esc", label: "quit" }]
                 : status.type === "creating"
-                  ? [{ key: "q", label: "quit" }]
-                  : [{ key: "q", label: "quit" }]
+                  ? []
+                  : [{ key: "esc", label: "quit" }]
 
-  const renderRightPane = () => {
+  const buildBreadcrumbs = (): Breadcrumb[] => {
+    const crumbs: Breadcrumb[] = []
+
+    if (status.type === "error") {
+      crumbs.push({ label: "Error", fg: theme.error })
+      return crumbs
+    }
+
+    if (status.type === "success") {
+      crumbs.push({ label: "✓ Created", fg: theme.success, attributes: TextAttributes.BOLD })
+      return crumbs
+    }
+
+    if (status.type === "failed") {
+      crumbs.push({ label: "✗ Failed", fg: theme.error })
+      return crumbs
+    }
+
+    crumbs.push({
+      label: currentBranch ?? "Branch",
+      fg: currentBranch ? getBranchColor(theme, currentBranch) : theme.textMuted,
+    })
+
+    crumbs.push({
+      label: selectedBranch ?? "Target",
+      fg: selectedBranch ? getBranchColor(theme, selectedBranch) : theme.textMuted,
+    })
+
+    crumbs.push({
+      label: selectedTemplate?.name ?? "Template",
+      fg: selectedTemplate ? theme.text : theme.textMuted,
+    })
+
+    if (status.type === "creating") {
+      crumbs.push({ label: "Creating", fg: theme.info, attributes: TextAttributes.BOLD, showLoader: true })
+    } else if (status.type === "editing") {
+      crumbs.push({ label: "Editing", fg: theme.accent, attributes: TextAttributes.BOLD, showLoader: true })
+    } else if (status.type === "selecting-template") {
+      crumbs.push({ label: "Selecting", fg: theme.textMuted })
+    } else if (status.type === "selecting-branch") {
+      crumbs.push({ label: "Selecting", fg: theme.textMuted })
+    }
+
+    return crumbs
+  }
+
+  const renderContent = () => {
     if (status.type === "error") {
       const content = errorContent ?? getErrorContent(status.reason)
 
@@ -214,265 +255,134 @@ export function UnifiedScreen({
 
     if (status.type === "creating") {
       return (
-        <box flexDirection="row" gap={1} padding={1}>
-          <text fg={theme.info}>◐</text>
-          <text fg={theme.info}>Lightning PR: creating pull request...</text>
+        <box flexDirection="column" justifyContent="center" alignItems="center" flexGrow={1}>
+          <text fg={theme.textMuted}>Creating your pull request...</text>
         </box>
       )
     }
 
     if (status.type === "success") {
+      const hyperlink = `\x1b]8;;${status.url}\x07${status.url}\x1b]8;;\x07`
       return (
-        <box flexDirection="column" flexGrow={1} gap={1}>
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.success}>✓</text>
-            <text attributes={TextAttributes.BOLD} fg={theme.success}>
-              Pull Request Created
-            </text>
+        <box flexDirection="column" flexGrow={1} gap={2}>
+          <box flexDirection="column" gap={1}>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.success} attributes={TextAttributes.BOLD}>✓</text>
+              <text fg={theme.success} attributes={TextAttributes.BOLD}>Pull request created</text>
+            </box>
+            <box paddingLeft={2}>
+              <text fg={theme.accent}>{hyperlink}</text>
+            </box>
           </box>
-          <text fg={theme.text}>{status.url}</text>
-          <text fg={theme.textMuted}>Exiting in a few seconds...</text>
+          <box paddingLeft={2}>
+            <text fg={theme.textMuted}>⌘+click to open in browser</text>
+          </box>
         </box>
       )
     }
 
     if (status.type === "failed") {
       return (
-        <box flexDirection="column" flexGrow={1} gap={1}>
-          <box flexDirection="row" gap={1}>
-            <text fg={theme.error}>✗</text>
-            <text attributes={TextAttributes.BOLD} fg={theme.error}>
-              Failed to Create PR
-            </text>
-          </box>
-          <text fg={theme.text}>{status.error}</text>
-          {status.compareUrl && (
-            <box flexDirection="column" gap={1} paddingTop={1}>
-              <text fg={theme.textMuted}>Create manually:</text>
-              <text fg={theme.accent}>{status.compareUrl}</text>
+        <box flexDirection="column" flexGrow={1} gap={2}>
+          <box flexDirection="column" gap={1}>
+            <box flexDirection="row" gap={1}>
+              <text fg={theme.error} attributes={TextAttributes.BOLD}>✗</text>
+              <text fg={theme.error} attributes={TextAttributes.BOLD}>Failed to create pull request</text>
             </box>
-          )}
+            <box paddingLeft={2}>
+              <text fg={theme.text}>{status.error}</text>
+            </box>
+          </box>
         </box>
       )
     }
 
     if (status.type === "selecting-branch") {
       return (
-        <box flexDirection="column" gap={1} flexGrow={1}>
-          <text attributes={TextAttributes.BOLD} fg={theme.text}>
-            Select target branch:
-          </text>
-          <box borderStyle="single" borderColor={theme.border} flexGrow={1} padding={1}>
-            {branches.length === 0 ? (
-              <text fg={theme.textMuted}>No branches available</text>
-            ) : (
-              <scrollbox>
-                <box flexDirection="column">
-                  {branches.map((branch, index) => (
-                    <box
-                      key={branch}
-                      flexDirection="row"
-                      paddingLeft={1}
-                      paddingRight={1}
-                      paddingTop={0}
-                      paddingBottom={0}
+        <box flexDirection="column" flexGrow={1} gap={1}>
+          <text fg={theme.textMuted}>Select target branch</text>
+          {branches.length === 0 ? (
+            <text fg={theme.textMuted}>No branches available</text>
+          ) : (
+            <scrollbox flexGrow={1}>
+              <box flexDirection="column">
+                {branches.map((branch, index) => (
+                  <box key={branch} flexDirection="row">
+                    <text
+                      fg={
+                        index === focusedBranchIndex
+                          ? theme.accent
+                          : getBranchColor(theme, branch)
+                      }
+                      attributes={index === focusedBranchIndex ? TextAttributes.BOLD : undefined}
                     >
-                      <text
-                        fg={
-                          index === focusedBranchIndex
-                            ? theme.accent
-                            : getBranchColor(theme, branch)
-                        }
-                        attributes={index === focusedBranchIndex ? TextAttributes.BOLD : undefined}
-                      >
-                        {index === focusedBranchIndex ? "▶ " : "  "}
-                        {branch}
-                      </text>
-                    </box>
-                  ))}
-                </box>
-              </scrollbox>
-            )}
-          </box>
+                      {index === focusedBranchIndex ? "▶ " : "  "}
+                      {branch}
+                    </text>
+                  </box>
+                ))}
+              </box>
+            </scrollbox>
+          )}
         </box>
       )
     }
 
     if (status.type === "selecting-template") {
       return (
-        <box flexDirection="column" gap={1} flexGrow={1}>
-          <text attributes={TextAttributes.BOLD} fg={theme.text}>
-            Select template:
-          </text>
-          <box borderStyle="single" borderColor={theme.border} flexGrow={1} padding={1}>
-            {templates.length === 0 ? (
-              <text fg={theme.textMuted}>No templates available</text>
-            ) : (
-              <scrollbox>
-                <box flexDirection="column">
-                  {templates.map((template, index) => (
-                    <box
-                      key={template.path}
-                      flexDirection="column"
-                      paddingLeft={1}
-                      paddingRight={1}
-                      paddingTop={0}
-                      paddingBottom={0}
+        <box flexDirection="column" flexGrow={1} gap={1}>
+          <text fg={theme.textMuted}>Select template</text>
+          {templates.length === 0 ? (
+            <text fg={theme.textMuted}>No templates available</text>
+          ) : (
+            <scrollbox flexGrow={1}>
+              <box flexDirection="column">
+                {templates.map((template, index) => (
+                  <box key={template.path} flexDirection="column">
+                    <text
+                      fg={index === focusedTemplateIndex ? theme.accent : theme.text}
+                      attributes={index === focusedTemplateIndex ? TextAttributes.BOLD : undefined}
                     >
-                      <text
-                        fg={index === focusedTemplateIndex ? theme.accent : theme.text}
-                        attributes={index === focusedTemplateIndex ? TextAttributes.BOLD : undefined}
-                      >
-                        {index === focusedTemplateIndex ? "▶ " : "  "}
-                        {template.name}
-                      </text>
-                      <text fg={theme.textMuted} paddingLeft={3}>
-                        {template.path}
-                      </text>
-                    </box>
-                  ))}
-                </box>
-              </scrollbox>
-            )}
-          </box>
+                      {index === focusedTemplateIndex ? "▶ " : "  "}
+                      {template.name}
+                    </text>
+                    <text fg={theme.textMuted}>
+                      {"    "}{template.path}
+                    </text>
+                  </box>
+                ))}
+              </box>
+            </scrollbox>
+          )}
         </box>
       )
     }
 
     return (
-      <box flexDirection="column" gap={1} flexGrow={1}>
-        <text attributes={TextAttributes.BOLD} fg={theme.text}>
-          Edit PR description:
-        </text>
+      <box flexDirection="column" flexGrow={1}>
         <box borderStyle="single" borderColor={theme.border} flexGrow={1} padding={1}>
-          <scrollbox
-            verticalScrollbarOptions={{
-              visible: true,
-              trackOptions: {
-                backgroundColor: theme.background,
-                foregroundColor: theme.border,
-              },
+          <textarea
+            key={selectedTemplate?.path}
+            ref={textareaRef}
+            initialValue={editorContent}
+            focused
+            flexGrow={1}
+            onContentChange={() => {
+              const content = textareaRef.current?.plainText ?? ""
+              onEditorChange(content)
             }}
-          >
-            <textarea
-              key={selectedTemplate?.path}
-              ref={textareaRef}
-              initialValue={editorContent}
-              focused
-              onContentChange={() => {
-                const content = textareaRef.current?.plainText ?? ""
-                onEditorChange(content)
-              }}
-            />
-          </scrollbox>
+          />
         </box>
       </box>
     )
   }
 
   return (
-    <box flexDirection="column" flexGrow={1}>
-      <box
-        flexDirection="row"
-        borderStyle="single"
-        borderColor={theme.border}
-        flexGrow={1}
-        overflow="hidden"
-      >
-        <box
-          flexDirection="column"
-          alignItems="center"
-          justifyContent="flex-start"
-          width="30%"
-          padding={0}
-          flexShrink={0}
-        >
-          <Logo />
-          <box flexDirection="row">
-            <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
-              {username ? "Welcome back, " : "Welcome!"}
-            </text>
-            {username && (
-              <text attributes={TextAttributes.BOLD} fg="#FFFFFF" wrapMode="none">
-                {username}!
-              </text>
-            )}
-          </box>
-          <text attributes={TextAttributes.BOLD} fg={theme.text} wrapMode="none">
-            Lightning PR
-          </text>
-          {currentBranch && (
-            <box flexDirection="row" gap={1} alignItems="center" flexWrap="no-wrap">
-              <text fg={getBranchColor(theme, currentBranch)} wrapMode="none">
-                {currentBranch}
-              </text>
-              <text fg={theme.textMuted} wrapMode="none">→</text>
-              {selectedBranch ? (
-                <text
-                  fg={getBranchColor(theme, selectedBranch)}
-                  attributes={TextAttributes.BOLD}
-                  wrapMode="none"
-                >
-                  {selectedBranch}
-                </text>
-              ) : (
-                <text fg={theme.textMuted} wrapMode="none">[selecting]</text>
-              )}
-            </box>
-          )}
-
-          <box paddingTop={1}>
-            <text fg={theme.border} wrapMode="none">────────────────────</text>
-          </box>
-
-          <text attributes={TextAttributes.BOLD} fg={theme.info} wrapMode="none">
-            Recent Activity
-          </text>
-          <box flexDirection="column" paddingLeft={1}>
-            {recentPRs.length === 0 ? (
-              <text fg={theme.textMuted} wrapMode="none">No recent PRs</text>
-            ) : (
-              <>
-                <text fg={theme.textMuted} wrapMode="none">
-                  • {recentPRs.length} PR{recentPRs.length !== 1 ? "s" : ""}{" "}
-                  recently
-                </text>
-                {recentPRs[0] && (
-                  <box flexDirection="row" gap={1} flexWrap="no-wrap">
-                    <text fg={theme.textMuted} wrapMode="none">• Last:</text>
-                    <text fg={getBranchColor(theme, recentPRs[0].headBranch)} wrapMode="none">
-                      {recentPRs[0].headBranch}
-                    </text>
-                    <text fg={theme.textMuted} wrapMode="none">→</text>
-                    <text fg={getBranchColor(theme, recentPRs[0].baseBranch)} wrapMode="none">
-                      {recentPRs[0].baseBranch}
-                    </text>
-                  </box>
-                )}
-              </>
-            )}
-          </box>
-        </box>
-
-        <box
-          width={1}
-          borderStyle="single"
-          borderColor={theme.border}
-          border={["left"]}
-        />
-
-        <box
-          flexDirection="column"
-          width="70%"
-          padding={1}
-          gap={1}
-          flexGrow={1}
-        >
-          {renderRightPane()}
-        </box>
-      </box>
-
-      <KeyHints hints={hints} />
-    </box>
+    <StreamlinedLayout
+      breadcrumbs={buildBreadcrumbs()}
+      hints={hints}
+    >
+      {renderContent()}
+    </StreamlinedLayout>
   )
 }
